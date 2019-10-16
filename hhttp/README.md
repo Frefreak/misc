@@ -1,0 +1,1 @@
+- need bulma.min.css and pattern.png when compiling, then it'll be embedded

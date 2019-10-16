@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+
+# tmux argument paste (TAP) utility
+
+import argparse
+import subprocess
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-t', '--target', metavar='target')
+parser.add_argument('-l', '--line', action='store_true')
+
+
+def get_text(args):
+    if args.target:
+        target = ['-d', args.target]
+    else:
+        target = []
+    r = subprocess.check_output(['tmux', 'capturep', '-p'] + target)
+    return r.decode()
+
+
+def to_clipboard(t):
+    subprocess.run(['xclip', '-i', '-selection', 'clipboard'], input=t.encode())
+
+
+def main():
+    args = parser.parse_args()
+    txt = get_text(args)
+    lines = txt.splitlines()
+    while lines and lines[-1] == '':
+        lines = lines[:-1]
+    if not lines:
+        print('fail to get valid content')
+        exit(1)
+    if args.line:
+        content = lines[-2]
+    else:
+        content = lines[-2].split()[-1]
+    to_clipboard(content)
+    print('done')
+
+
+if __name__ == "__main__":
+    main()

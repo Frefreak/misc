@@ -1,0 +1,40 @@
+name:                hhttp
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/Frefreak/hhttp#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Xiangyu Zhu
+maintainer:          frefreak.zxy@gmail.com
+copyright:           Copyright Xiangyu Zhu (c) 2017
+category:            Abstract
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+executable hhttp
+  hs-source-dirs:      .
+  main-is:             hhttp.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , servant-server
+                     , servant-blaze
+                     , servant-multipart
+                     , blaze-html
+                     , shakespeare
+                     , file-embed
+                     , optparse-applicative
+                     , warp
+                     , warp-tls
+                     , wai-extra
+                     , text
+                     , base64-bytestring
+                     , bytestring
+                     , process
+                     , directory
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/Frefreak/hhttp

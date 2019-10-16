@@ -1,0 +1,3 @@
+#!/usr/bin/env zsh
+
+cat /proc/$1/cmdline | sed 's/\x00/ /g'

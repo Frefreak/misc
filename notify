@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+kdialog --passivepopup "${1:-whatever}"
+
