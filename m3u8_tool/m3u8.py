@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 
+import os
+import queue
+import subprocess
 import sys
 import time
-from hashlib import md5
-from enum import Enum
-import subprocess
-import requests
-from http.client import IncompleteRead
-import queue
-import os
-from threading import Thread, current_thread, enumerate as thread_enumerate
-from functools import partial
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
+from functools import partial
+from hashlib import md5
+from http.client import IncompleteRead
+from threading import Thread, current_thread
+from threading import enumerate as thread_enumerate
 
 # pyqt5
 import requests
-from PyQt5.QtWidgets import QWidget, QApplication, QMainWindow, QLabel, QLineEdit, QHBoxLayout, QFormLayout, QCheckBox, QVBoxLayout, QTextEdit, QTableWidget, QPushButton, QSpacerItem, QHeaderView, QInputDialog, QTableWidgetItem, QFileDialog, QProgressBar, QMessageBox, QListWidget, QListWidgetItem
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFormLayout,
+                             QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+                             QLineEdit, QListWidget, QListWidgetItem,
+                             QMainWindow, QMessageBox, QProgressBar,
+                             QPushButton, QSpacerItem, QTableWidget,
+                             QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 JOB = 7
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
@@ -424,7 +429,7 @@ class MainWindow(QMainWindow, AlertMixin):
                     resp = requests.get(url, timeout=10)
                 except Exception as e:
                     status.put((DownloadStatus.NetworkError, (url, repr(e))))
-                    job.put(url)
+                    job.put((url, fn))
                     continue
                 else:
                     if resp.status_code == 404:
@@ -447,7 +452,7 @@ class MainWindow(QMainWindow, AlertMixin):
         for f in files:
             job.put(f)
 
-        for i in range(JOB):
+        for _i in range(JOB):
             Thread(target=worker, args=(job, status)).start()
 
         finished = 0
