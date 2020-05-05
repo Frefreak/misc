@@ -33,9 +33,10 @@ def parse(txt: str, base: str):
     total_time = 0.
     i = 0
     cnt = 0
+    keyfile = None
     while i < len(lns):
-        new_file.append(lns[i])
         if lns[i].startswith('#EXTINF:'):
+            new_file.append(lns[i])
             time = lns[i].lstrip('#EXTINF:').split(',')[0]
             total_time += float(time)
 
@@ -54,8 +55,36 @@ def parse(txt: str, base: str):
                     url = url[1:]
                 files.append((base + inter + url, filename))
             i += 1
+        elif lns[i].startswith('#EXT-X-KEY'):
+            #EXT-X-KEY:METHOD=AES-128,URI="xxx.key",IV=0xdeadbeef...
+            attrs_text = ':'.join(lns[i].split(':')[1:])
+            attrs = {}
+            for kv in attrs_text.split(','):
+                if '=' in kv:
+                    t = kv.split('=')
+                    if len(t) == 2:
+                        attrs[t[0]] = t[1]
+            if attrs.get('METHOD') and (uri := attrs.get('URI')):
+                uri = uri.strip('"')
+                if '://' in uri:
+                    keyfile = uri
+                else:
+                    keyfile = base + '/' + uri
+            # construct EXT-X-KEY line
+            l = '#EXT-X-KEY:'
+            vals = []
+            for k, v in attrs.items():
+                if k == 'URI':
+                    vals.append(f'URI="keyfile"')
+                else:
+                    vals.append(f'{k}={v}')
+            l += ','.join(vals)
+            new_file.append(l)
+
+        else:
+            new_file.append(lns[i])
         i += 1
-    return new_file, files, total_time
+    return new_file, files, keyfile, total_time
 
 
 class AlertMixin():
@@ -138,7 +167,7 @@ class Cookie(QWidget, AlertMixin):
         for kv in txt.split(';'):
             kvs = kv.strip().split('=')
             if len(kvs) != 2:
-                self.alert(self, f'error parsing cookie key-value: {kv}')
+                self.alert(f'error parsing cookie key-value: {kv}')
                 continue
             kv_collect.append((kvs[0], kvs[1]))
         self.cookie_tab.setRowCount(len(kv_collect))
@@ -375,7 +404,7 @@ class MainWindow(QMainWindow, AlertMixin):
         m3u8 = resp.text
 
         try:
-            new_file, files, total_time = parse(m3u8, base)
+            new_file, files, keyfile, total_time = parse(m3u8, base)
         except Exception as e:
             self.alert(f'parse failed: {repr(e)}')
             return
@@ -383,6 +412,15 @@ class MainWindow(QMainWindow, AlertMixin):
             self.alert('no file parsed, giving up')
             print(m3u8)
             return
+
+        if keyfile:
+            try:
+                resp = requests.get(keyfile, headers=header, timeout=10)
+            except Exception as e:
+                self.alert(f'failed to get keyfile {keyfile}')
+            with open(os.path.join(dest, 'keyfile'), 'wb') as f:
+                f.write(resp.content)
+
 
         # start downloading, add new status
         status.set_total(len(files))
