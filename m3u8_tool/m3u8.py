@@ -41,7 +41,7 @@ def parse(txt: str, base: str):
             total_time += float(time)
 
             url = lns[i + 1]
-            filename = url.split('?')[0].split('/')[-1] + ':' + str(cnt)
+            filename = url.split('?')[0].split('/')[-1] + '.' + str(cnt)
             cnt += 1
             new_file.append(filename)
             if url.startswith('http://') or url.startswith('https://'):
