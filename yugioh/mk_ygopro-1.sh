@@ -52,3 +52,6 @@ cd ../..
 
 # pull sound files
 git clone https://code.mycard.moe/mycard/ygopro-sounds --depth=1
+
+# starter deck and single mode script
+git clone https://code.mycard.moe/mycard/ygopro-starter-pack

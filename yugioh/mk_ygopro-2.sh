@@ -21,6 +21,7 @@ mkdir -p ${GAME_DIR}
 cp -r ygopro/build/bin/ygopro ygopro/{lflist.conf,script,system.conf,textures} $GAME_DIR
 cp -r ygopro-database/locales/en-US/{cards.cdb,strings.conf} $GAME_DIR
 cp -r ygopro-sounds/sound $GAME_DIR
+cp -r ygopro-starter-pack/{deck,single} $GAME_DIR
 cd $GAME_DIR
 ln -s ../pics pics
 sed -i "s|^textfont =.*|textfont = $FONT_FILE 14|" system.conf
