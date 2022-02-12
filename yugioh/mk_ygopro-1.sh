@@ -6,7 +6,7 @@ if [ -z ${DEST} ]; then
 	exit 1
 fi
 
-mkdir "${DEST}"
+mkdir -p "${DEST}"
 cd "${DEST}" || exit 1
 
 # building lua
@@ -26,7 +26,7 @@ git clone https://github.com/mycard/ygopro-database --depth=1
 
 # getting irrKlang for audio
 curl -OL https://www.ambiera.at/downloads/irrKlang-64bit-1.6.0.zip
-unzip x irrKlang-64bit-1.6.0.zip
+unzip irrKlang-64bit-1.6.0.zip
 rm irrKlang-64bit-1.6.0.zip
 
 # building ygopro itself
