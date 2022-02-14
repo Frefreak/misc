@@ -10,6 +10,7 @@ parser.add_argument('deck')
 parser.add_argument('--hand', type=lambda x: [int(n) for n in x.split(',')])
 # parser.add_argument('--grave', type=lambda x: x.split(','))
 parser.add_argument('-o', '--out', default=None)
+parser.add_argument('-ca', '--can-attack', default=False, action='store_true')
 
 f = None
 
@@ -63,9 +64,13 @@ def main():
                 print(f"invalid hand: {c}")
                 sys.exit(1)
             main_cards.remove(c)
+    if args.can_attack:
+        duel_option = 'DUEL_ATTACK_FIRST_TURN' # can attack
+    else:
+        duel_option = 0
 
-    pb("""Debug.SetAIName("高性能电子头脑")
-Debug.ReloadFieldBegin(DUEL_ATTACK_FIRST_TURN+DUEL_SIMPLE_AI,5)
+    pb(f"""Debug.SetAIName("高性能电子头脑")
+Debug.ReloadFieldBegin({duel_option},5)
 Debug.SetPlayerInfo(0,8000,0,0)
 Debug.SetPlayerInfo(1,8000,0,0)""")
 
