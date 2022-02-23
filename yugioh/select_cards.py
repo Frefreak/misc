@@ -9,7 +9,9 @@ import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--delim", default=",")
-parser.add_argument("-n", "--name", default=False, help='show names only', action='store_true')
+parser.add_argument(
+    "-n", "--name", default=False, help="show names only", action="store_true"
+)
 parser.add_argument("-f", "--filter", default="")
 
 cdb = os.getenv("CARDS_CDB", None)
@@ -36,7 +38,7 @@ def main():
     r = p.communicate(input_str.encode())
     if args.name:
         selected = [x.split(":")[1] for x in r[0].decode().splitlines()]
-        print('\n'.join(selected))
+        print("\n".join(selected))
         return
     selected = [x.split(":")[0] for x in r[0].decode().splitlines()]
     print(args.delim.join(selected))
