@@ -1,7 +1,7 @@
 use actix_files as fs;
 use actix_web::{App, HttpServer, middleware::{Logger, Condition}, error::ErrorForbidden};
-use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
+use actix_web_httpauth::{middleware::HttpAuthentication, extractors::basic::Config};
 use crate::cli;
 
 pub async fn start_server(opts: cli::Opts) -> std::io::Result<()> {
@@ -26,6 +26,7 @@ pub async fn start_server(opts: cli::Opts) -> std::io::Result<()> {
             }
         });
         App::new().service(fs::Files::new("/", dir.clone()).show_files_listing())
+            .app_data(Config::default().realm("Restricted area"))
             .wrap(Logger::default())
             .wrap(Condition::new(auth2 != "", basic_auth))
     })
