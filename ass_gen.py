@@ -6,7 +6,7 @@ template = """
 [Script Info]
 Title: {{title}}
 ScriptType: v4.00+
-PlayResY: 800
+PlayResX: 800
 PlayResY: 600
 
 [V4+ Styles]
@@ -20,8 +20,7 @@ Dialogue: 0,{{line[0]}},{{line[1]}},Default, 1,0000,0000,0000,,{\pos(400,570)}{{
 {%- endfor %}
 """
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--config", help="config yaml")
-parser.add_argument("-t", "--title", help="title")
+parser.add_argument("-c", "--config", help="config yaml", required=True)
 
 
 def main():
@@ -31,7 +30,7 @@ def main():
     env = jinja2.Environment()
     print(
         env.from_string(template).render(
-            title=c["title"], lines=[x.split(" ", 2) for x in c["lines"]]
+            title=c["title"], lines=[x.split(" ", 2) for x in c["subtitles"]]
         )
     )
 
