@@ -2,7 +2,8 @@
 # compose files
 
 GAME_DIR=game
-FONT=adobe-source-sans-pro
+FONT1="WenQuanYi Micro Hei"
+FONT2=adobe-source-sans-pro
 
 if [ -z ${DEST} ]; then
 	echo DEST is empty
@@ -10,9 +11,14 @@ if [ -z ${DEST} ]; then
 fi
 cd $DEST || exit 1
 
-FONT_FILE=$(fc-match ${FONT} --format=%{file})
-if [ -z $FONT_FILE ]; then
-	echo can not find font "${FONT}"
+FONT_FILE1=$(fc-match "${FONT1}" --format=%{file})
+if [ -z $FONT_FILE1 ]; then
+	echo can not find font "${FONT1}"
+	exit 1
+fi
+FONT_FILE2=$(fc-match "${FONT2}" --format=%{file})
+if [ -z $FONT_FILE2 ]; then
+	echo can not find font "${FONT2}"
 	exit 1
 fi
 
@@ -24,5 +30,5 @@ cp -r ygopro-sounds/sound $GAME_DIR
 cp -r ygopro-starter-pack/{deck,single} $GAME_DIR
 cd $GAME_DIR
 ln -s ../pics pics
-sed -i "s|^textfont =.*|textfont = $FONT_FILE 14|" system.conf
-sed -i "s|^numfont =.*|numfont = $FONT_FILE|" system.conf
+sed -i "s|^textfont =.*|textfont = $FONT_FILE1 14|" system.conf
+sed -i "s|^numfont =.*|numfont = $FONT_FILE2|" system.conf
