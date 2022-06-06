@@ -33,8 +33,16 @@ def mk_subtitle(args):
     print(cmd)
     subprocess.run(cmd, shell=True)
 
+def find_vid_length(fp: str) -> str:
+    ss = subprocess.getoutput(f'ffprobe -i {fp} |& grep Duration')
+    t = ss.splitlines()[0].split(', ')[0].split(': ', 1)[1]
+    print(f'video length: \x1b[31;1m{t}\x1b[0m')
+    [h, m, s] = t.split(':', 2)
+    return str(int(h) * 3600 + int(m) * 60 + float(s))
 
 def mk_final(args):
+    length = find_vid_length(args.video)
+    print(f'video length in secs: \x1b[31;1m{length}\x1b[0m')
     print("make final")
     cmds = ["ffmpeg", "-i", args.video, "-filter_complex"]
     # ass & trim
@@ -43,7 +51,7 @@ def mk_final(args):
     else:
         from_time = args.from_time
     if args.to_time is None:
-        to_time = ""
+        to_time = length
     else:
         to_time = args.to_time
 
