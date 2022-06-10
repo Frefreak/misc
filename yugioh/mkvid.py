@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import subprocess
 import argparse
+from typing import Tuple
 from shlex import quote
 import yaml
 import jinja2
+import ffmpeg
 
 template = r"""
 [Script Info]
@@ -28,32 +30,44 @@ DFT_ASS_OUT = "/tmp/out.ass"
 
 def mk_subtitle(args):
     print("make subtitle")
-    write_ass(args)
+    write_ass(args.config, args.out)
     cmd = f"""mpv -vf 'ass="{args.out}"' {quote(args.video)}"""
     print(cmd)
     subprocess.run(cmd, shell=True)
 
-def find_vid_length(fp: str) -> str:
-    ss = subprocess.getoutput(f'ffprobe -i {fp} |& grep Duration')
-    t = ss.splitlines()[0].split(', ')[0].split(': ', 1)[1]
-    print(f'video length: \x1b[31;1m{t}\x1b[0m')
-    [h, m, s] = t.split(':', 2)
-    return str(int(h) * 3600 + int(m) * 60 + float(s))
+def find_vid_info(fp: str) -> Tuple[float, int]:
+    info = ffmpeg.probe(fp)
+    duration = float(info['format']['duration'])
+    bit_rate = int(info['format']['bit_rate'])
+    return (duration, bit_rate)
+
+def convert_to_secs(s) -> str:
+    [a, b, c] = s.split(':', 2)
+    return str(int(a) * 3600 + int(b) * 60 + float(c))
 
 def mk_final(args):
-    length = find_vid_length(args.video)
-    print(f'video length in secs: \x1b[31;1m{length}\x1b[0m')
+    duration, bit_rate = find_vid_info(args.video)
+    print(f'video info: \x1b[31;1m{duration} {bit_rate}\x1b[0m')
     print("make final")
     cmds = ["ffmpeg", "-i", args.video, "-filter_complex"]
+
+    with open(args.config) as f:
+        c = yaml.safe_load(f)
+    from_time = c.get('from', None)
+    to_time = c.get('to', None)
+
+    # write subtitle file too
+    write_ass(args.config, args.subtitle)
+
     # ass & trim
-    if args.from_time is None:
+    if from_time is None:
         from_time = "0"
     else:
-        from_time = args.from_time
-    if args.to_time is None:
-        to_time = length
+        from_time = convert_to_secs(from_time)
+    if to_time is None:
+        to_time = str(duration)
     else:
-        to_time = args.to_time
+        to_time = convert_to_secs(to_time)
 
     first_filter = f"[0]ass={args.subtitle},trim={from_time}:{to_time}[t]; "
 
@@ -64,7 +78,7 @@ def mk_final(args):
     third_filter = "[t][mask]overlay=1270:18[out]"
 
     cmds.append(first_filter + second_filter + third_filter)
-    cmds.extend(["-map", "[out]", "-c:v", "libx264", "-c:a", "copy", args.out])
+    cmds.extend(["-map", "[out]", "-map", "0:a", "-c:v", "libx264", "-b:v", str(bit_rate), "-c:a", "copy", "-ss", from_time, "-to", to_time, args.out])
     print(cmds)
     print(" ".join(cmds))
     subprocess.run(cmds)
@@ -83,17 +97,15 @@ final_cmd = subparsers.add_parser("final", aliases=["f", "fi"])
 final_cmd.add_argument("video")
 final_cmd.add_argument("config")
 final_cmd.add_argument("-s", "--subtitle", default=DFT_ASS_OUT)
-final_cmd.add_argument("-f", "--from-time")
-final_cmd.add_argument("-t", "--to-time")
 final_cmd.add_argument("-o", "--out", default='out.mkv')
 final_cmd.set_defaults(func=mk_final)
 
 
-def write_ass(args):
-    with open(args.config) as f:
+def write_ass(config, ass_out):
+    with open(config) as f:
         c = yaml.safe_load(f)
     env = jinja2.Environment()
-    with open(args.out, "w") as f:
+    with open(ass_out, "w") as f:
         f.write(
             env.from_string(template).render(
                 title=c["title"], lines=[x.split(" ", 2) for x in c["subtitles"]]
