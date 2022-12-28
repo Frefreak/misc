@@ -7,14 +7,13 @@ import tarfile
 import tempfile
 import random
 import string
-import subprocess
 from urllib.request import urlopen
 from shutil import rmtree
 import argparse
 
 TEMP_DIR = "/tmp/"
-SS_URL = "https://github.com/shadowsocks/shadowsocks-rust/releases/download/v1.14.3/shadowsocks-v1.14.3.x86_64-unknown-linux-gnu.tar.xz"
-V2RAY_URL = "https://github.com/teddysun/v2ray-plugin/releases/download/v4.45.2/v2ray-plugin-linux-amd64-v4.45.2.tar.gz"
+SS_URL = "https://github.com/shadowsocks/shadowsocks-rust/releases/download/v1.15.2/shadowsocks-v1.15.2.x86_64-unknown-linux-gnu.tar.xz"
+V2RAY_URL = "https://github.com/teddysun/v2ray-plugin/releases/download/v5.1.0/v2ray-plugin-linux-amd64-v5.1.0.tar.gz"
 
 PERM_755 = stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
 
@@ -47,7 +46,6 @@ WantedBy=multi-user.target
 """
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--cert-only", default=False, action='store_true', help="just obtain lets encrypt cert")
 parser.add_argument("-d", "--domain", required=True, help="domain name")
 parser.add_argument("-p", "--python", default="python3", help="python binary")
 parser.add_argument(
@@ -61,7 +59,7 @@ parser.add_argument(
 )
 
 
-# 60% symbol, 40% alphanumuric
+# 50% symbol, 50% alphanumuric
 def mk_random_password(size: int) -> str:
     s = ["" for _ in range(size)]
     symbol_set = """!@#$%^&*()-_+={}[];:"""
@@ -133,31 +131,6 @@ def prepare_v2ray_plugin(args):
         os.chmod(v2ray_plugin_bin, PERM_755)
 
 
-def prepare_lets_encrypt_cert(args):
-    ret = subprocess.run("command -v certbot", shell=True)
-    certbot_bin = 'certbot'
-    if ret.returncode != 0:
-        try:
-            os.stat('/usr/local/bin/certbot')
-            certbot_bin = '/usr/local/bin/certbot'
-        except FileNotFoundError:
-            yesno = input("certbot not found, install now? [Y/n]")
-            if yesno.lower() == "n":
-                exit(0)
-            else:
-                ret = subprocess.run(f"{args.python} -m pip install certbot", shell=True)
-                if ret.returncode != 0:
-                    print("install certbot failed")
-                    exit(1)
-                certbot_bin = '/usr/local/bin/certbot'
-
-    ret = subprocess.run(f"{certbot_bin} cert-only -d {args.domain}", shell=True)
-    if ret.returncode != 0:
-        print("failed to obtain cert")
-    else:
-        print("cert installed successful")
-
-
 def main():
     if os.geteuid() != 0:
         print("need root permission")
@@ -166,14 +139,6 @@ def main():
     args = parser.parse_args()
     print(args)
     time.sleep(3)
-
-    if args.certonly:
-        prepare_lets_encrypt_cert(args)
-        exit(0)
-    else:
-        yesno = input("acquire Let's Encrypt Cert? [y/N]")
-        if yesno.lower() == "y":
-            prepare_lets_encrypt_cert(args)
 
     d = tempfile.mkdtemp(prefix=TEMP_DIR)
     print(f"created temp dir {d}")
