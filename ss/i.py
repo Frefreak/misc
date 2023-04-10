@@ -4,6 +4,7 @@ import random
 import string
 import argparse
 import time
+from base64 import b64encode
 from shlex import quote
 from typing import Optional, Dict
 
@@ -53,33 +54,38 @@ def mk_trojan_config(run_type, password, domain) -> Dict:
             "enabled": False,
         },
     }
+    if run_type == "client":
+        config['ssl']['verify'] = True
+        config['ssl']['verify_hostname'] = True
+        config['ssl']['alpn'] = ['h2', 'http/1.1']
+
     return config
 
 
 def mk_systemd_config(folder, user):
     s = f"""
-    [Unit]
-    Description=trojan
-    After=network.target
+[Unit]
+Description=trojan
+After=network.target
 
-    [Service]
-    Type=simple
-    WorkingDirectory=/home/{user}/{folder}/trojan
-    ExecStart=/home/{user}/{folder}/trojan/trojan -c config.json
+[Service]
+Type=simple
+WorkingDirectory=/home/{user}/{folder}/trojan
+ExecStart=/home/{user}/{folder}/trojan/trojan -c config.json
 
-    [Install]
-    WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
     """
     return s
 
 
-def prepare_cert(conn, args, secret_id, secret_key):
+def prepare_cert(conn, domain, secret_id, secret_key):
     conn.sudo("pip install certbot certbot-dns-tencentcloud")
     conn.sudo("certbot plugins")
     env_str = (
         f"TENCENTCLOUD_SECRET_ID={secret_id} TENCENTCLOUD_SECRET_KEY={secret_key} "
     )
-    conn.sudo(env_str + f"certbot certonly -a dns-tencentcloud -d {args.domain}")
+    conn.sudo(env_str + f"certbot certonly -a dns-tencentcloud -d {domain}")
 
 
 def install(args):
@@ -89,7 +95,7 @@ def install(args):
     if domain is None:
         return
 
-    conn = Connection(args.target)
+    conn = Connection(args.host)
     conn.run("uname -a")
 
     if not args.skip_cert:
@@ -97,7 +103,7 @@ def install(args):
         secret_key = get_env("TENCENTCLOUD_SECRET_KEY")
         if secret_id is None or secret_key is None:
             exit(1)
-        prepare_cert(conn, args.domain, secret_id, secret_key)
+        prepare_cert(conn, domain, secret_id, secret_key)
 
     if args.trojan_version:
         if not args.trojan_version.startswith("v"):
@@ -115,34 +121,42 @@ def install(args):
 
     print(f"downloading with trojan url: {download_url}")
     ts = time.strftime("%Y%m%d_%H%M%S")
-    conn.run(f"mkdir {ts} && cd {ts}")
-    conn.run(f"curl -L {download_url} -o trojan.tar.xz")
-    conn.run("tar xzvf trojan.tar.xz && cd trojan")
+    conn.run(f"mkdir {ts}")
+    conn.run(f"cd {ts} && curl -L {download_url} -o trojan.tar.xz && tar xvf trojan.tar.xz")
 
     password = mk_random_password(20)
 
     print("making trojan config")
-    config = mk_trojan_config("server", password, args.domain)
+    config = mk_trojan_config("server", password, domain)
     config_str = json.dumps(config, indent=2)
-    conn.run(f"echo {quote(config_str)} > config.json")
+    conn.run(f"cd {ts}/trojan && echo {quote(config_str)} > config.json")
 
     print("systemd config")
     config = mk_systemd_config(ts, conn.user)
-    conn.sudo(f"echo {config} > /etc/systemd/system/trojan.service")
+    b64_config = b64encode(config.encode()).decode()
+
+    conn.sudo(f"bash -c 'echo {b64_config} | base64 -d > /etc/systemd/system/trojan.service'")
     conn.sudo("systemctl enable trojan")
     conn.sudo("systemctl start trojan")
 
     # generate a local trojan config
-    config = mk_trojan_config("client", password, args.domain)
+    config = mk_trojan_config("client", password, domain)
     config_str = json.dumps(config, indent=2)
     with open("config.json", 'w') as f:
         f.write(config_str)
 
+def bbr(args):
+    conn = Connection(args.host)
+    conn.run("uname -a")
+    conn.sudo("bash -c 'echo net.core.default_qdisc=fq >> /etc/sysctl.conf'")
+    conn.sudo("bash -c 'echo net.ipv4.tcp_congestion_control=bbr >> /etc/sysctl.conf'")
+    conn.sudo('sysctl -p')
+    conn.run("sysctl net.ipv4.tcp_congestion_control")
 
 # 50% symbol, 50% alphanumuric
 def mk_random_password(size: int) -> str:
     s = ["" for _ in range(size)]
-    symbol_set = """!@#$%^&*()-_+={}[];:"""
+    symbol_set = """!@#$%^&*-_+=;:"""
     for i in range(size):
         if random.random() < 0.5:
             s[i] = random.choice(symbol_set)
@@ -191,6 +205,13 @@ install_parser.add_argument(
 )
 install_parser.set_defaults(func=install)
 
+# Create parser for the "bbr" subcommand
+install_parser = subparsers.add_parser(
+    "bbr",
+    help="enable bbr",
+)
+install_parser.add_argument("host", help="target host to operate")
+install_parser.set_defaults(func=bbr)
 
 def get_env(key) -> Optional[str]:
     val = os.getenv(key, None)
