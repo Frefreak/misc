@@ -12,7 +12,8 @@ from fabric import Connection
 
 # run_type = client or server
 def mk_trojan_config(
-    run_type: str, password: str, domain: str, fallback_addr: str, fallback_port: int
+    run_type: str, password: str, domain: str, fallback_addr: str, fallback_port: int,
+    listen_port: int=443,
 ) -> Dict:
     config = {}
     match run_type:
@@ -22,7 +23,7 @@ def mk_trojan_config(
                 "local_addr": "127.0.0.1",
                 "local_port": 1080,
                 "remote_addr": domain,
-                "remote_port": 443,
+                "remote_port": listen_port,
                 "password": [password],
                 "ssl": {
                     "sni": domain,
@@ -35,7 +36,7 @@ def mk_trojan_config(
             config = {
                 "run_type": "server",
                 "local_addr": "0.0.0.0",
-                "local_port": 443,
+                "local_port": listen_port,
                 "remote_addr": "127.0.0.1",
                 "remote_port": 80,
                 "password": [password],
@@ -90,7 +91,8 @@ def install(args):
     password = mk_random_password(20)
     print("making trojan config")
     config = mk_trojan_config(
-        "server", password, domain, args.fallback_port, args.fallback_port
+        "server", password, domain, args.fallback_port, args.fallback_port,
+        listen_port=args.listen_port
     )
     config_str = json.dumps(config, indent=2)
     conn.run(f"cd {ts} && echo {quote(config_str)} > config.json")
@@ -112,7 +114,7 @@ def install(args):
     conn.run("command -v nginx || sudo apt install -y nginx")
     conn.sudo("systemctl start nginx")
 
-    print("waiting to start nginx")
+    print("waiting for nginx start")
     time.sleep(3)
     # start services
     conn.sudo("systemctl enable trojan-go")
@@ -170,15 +172,18 @@ install_parser.add_argument(
     default=443,
     help="fallback port for server config",
 )
+install_parser.add_argument(
+    "--listen-port", default=443, type=int, help="listen port"
+)
 install_parser.set_defaults(func=install)
 
 # Create parser for the "bbr" subcommand
-install_parser = subparsers.add_parser(
+bbr_parser = subparsers.add_parser(
     "bbr",
     help="enable bbr",
 )
-install_parser.add_argument("host", help="target host to operate")
-install_parser.set_defaults(func=bbr)
+bbr_parser.add_argument("host", help="target host to operate")
+bbr_parser.set_defaults(func=bbr)
 
 
 def get_env(key) -> Optional[str]:
@@ -194,7 +199,7 @@ def main():
     if not hasattr(args, "func"):
         print("invalid command")
         return
-    # args.func(args)
+    args.func(args)
 
 
 if __name__ == "__main__":
