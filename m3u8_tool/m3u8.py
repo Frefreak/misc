@@ -388,6 +388,12 @@ class MainWindow(QMainWindow, AlertMixin):
         }
         if cookie:
             header['Cookie'] = cookie
+        with open('.header', 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    k, v = line.split(' ', 1)
+                    header[k.strip()] = v.strip()
         try:
             resp = requests.get(url, headers=header)
         except Exception as e:

@@ -43,7 +43,7 @@ def mk_trojan_config(
                 "ssl": {
                     "cert": f"/etc/letsencrypt/live/{domain}/fullchain.pem",
                     "key": f"/etc/letsencrypt/live/{domain}/privkey.pem",
-                    "fallback_port": fallback_addr,
+                    "fallback_addr": fallback_addr,
                     "fallback_port": fallback_port,
                 },
             }
@@ -54,7 +54,7 @@ def mk_trojan_config(
 
 
 def prepare_cert(conn, domain, secret_id, secret_key):
-    conn.sudo("pip install certbot certbot-dns-tencentcloud")
+    conn.sudo("apt install -y python3-pip && sudo pip install certbot certbot-dns-tencentcloud")
     conn.sudo("certbot plugins")
     env_str = (
         f"TENCENTCLOUD_SECRET_ID={secret_id} TENCENTCLOUD_SECRET_KEY={secret_key} "
@@ -85,13 +85,13 @@ def install(args):
     print(f"downloading with trojan url: {download_url}")
     ts = time.strftime("%Y%m%d_%H%M%S")
     conn.run(f"mkdir {ts}")
-    conn.run(f"cd {ts} && curl -L {download_url} -o trojan.zip && unzip trojan.zip")
+    conn.run(f"cd {ts} && apt install unzip -y && curl -L {download_url} -o trojan.zip && unzip trojan.zip")
 
     # make config
     password = mk_random_password(20)
     print("making trojan config")
     config = mk_trojan_config(
-        "server", password, domain, args.fallback_port, args.fallback_port,
+        "server", password, domain, args.fallback_addr, args.fallback_port,
         listen_port=args.listen_port
     )
     config_str = json.dumps(config, indent=2)
@@ -111,7 +111,7 @@ def install(args):
     # start nginx
     # TODO: make this more robust
     print("starting nginx")
-    conn.run("command -v nginx || sudo apt install -y nginx")
+    conn.run("command -v nginx || sudo apt update -y && sudo apt install -y nginx")
     conn.sudo("systemctl start nginx")
 
     print("waiting for nginx start")
