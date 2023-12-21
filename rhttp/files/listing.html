@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>File Listing</title>
+ <style>
+  {{ css }}
+ </style>
+</head>
+<body>
+ <section class="section">
+  <div class="container">
+    <h1 class="title">File Listing</h1>
+    <table class="table is-bordered is-striped is-hoverable is-fullwidth styled-table">
+      <thead>
+        <tr>
+          <th class="first"></th>
+          <th>Name</th>
+          <th>Modified</th>
+          <th>Created</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {%- for file in files %}
+        <tr {%- if file.idx % 2 == 1 %} class="alt" {%- endif %}>
+          <td class="first">{%- if file.is_dir %}📁{%- endif %}</td>
+          <td><a href="{{ file.name }}">{{ file.name }}{%- if file.is_dir %}/{%- endif %}</a></td>
+          <td class="date">{{ file.modified }}</td>
+          <td class="date">{{ file.created }}</td>
+          <td class="size">{{ file.size }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+  </div>
+ </section>
+</body>
+</html>

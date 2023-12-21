@@ -1,5 +1,5 @@
 #![feature(absolute_path)]
-use std::{convert::Infallible, path::Path};
+use std::{convert::Infallible, path::Path, time::SystemTime};
 
 use axum::{
     body::Body,
@@ -8,7 +8,10 @@ use axum::{
     routing::{get, post},
     BoxError, Router,
 };
+use chrono::{DateTime, Local};
 use clap::Parser;
+use minijinja::{context, Environment};
+use serde::Serialize;
 use tower::service_fn;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing_subscriber::EnvFilter;
@@ -27,13 +30,20 @@ async fn main() {
         .init();
     let opt = Opts::parse();
     let opt_m = opt.clone();
-    let serve_dir = ServeDir::new(opt.directory.clone())
-        .fallback(service_fn(move |req| serve_not_found(opt_m.clone(), req)));
+    let mut jinja_env = Environment::new();
+    jinja_env
+        .add_template("listing.html", include_str!("../files/listing.html"))
+        .unwrap();
+    let jinja_env_m = jinja_env.clone();
+    let serve_dir = ServeDir::new(opt.directory.clone()).fallback(service_fn(move |req| {
+        serve_not_found(opt_m.clone(), jinja_env_m.clone(), req)
+    }));
     let app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
         .nest_service("/", serve_dir)
         .with_state(opt)
+        .with_state(jinja_env)
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -47,40 +57,88 @@ async fn upload_post(State(opts): State<Opts>) -> &'static str {
     todo!()
 }
 
-async fn serve_not_found(opt: Opts, req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    match serve_not_found_helper(opt, req).await {
+async fn serve_not_found<'a>(
+    opt: Opts,
+    jinja_env: Environment<'a>,
+    req: Request<Body>,
+) -> Result<Response<Body>, Infallible> {
+    let uri = req.uri().to_string();
+    match serve_not_found_helper(opt, jinja_env, req).await {
         Ok(resp) => Ok(resp),
         Err(e) => {
-            log::error!("{:?}", e);
+            log::debug!("{}: {:?}", uri, e);
             Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(""))
+                .body(Body::from("not found"))
                 .unwrap())
         }
     }
 }
 
-async fn serve_not_found_helper(opt: Opts, req: Request<Body>) -> Result<Response<Body>, BoxError> {
+#[derive(Debug, Serialize)]
+struct FileStat {
+    name: String,
+    modified: String,
+    created: String,
+    size: String,
+    is_dir: bool,
+    idx: usize,
+}
+
+async fn serve_not_found_helper<'a>(
+    opt: Opts,
+    jinja_env: Environment<'a>,
+    req: Request<Body>,
+) -> Result<Response<Body>, BoxError> {
     let (_, path) = req.uri().path().split_at(1);
     let full_path = std::path::absolute(&opt.directory)?.join(path);
-    log::debug!("{:?}", full_path);
     let meta = tokio::fs::metadata(&full_path).await?;
     if !meta.is_dir() {
         return Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::from(""))
-            .unwrap());
+            .body(Body::from("not found"))?);
     }
     // list files
-    let mut body = String::new();
-    body.push_str(r#"<html><head><meta charset="UTF-8"/></head><body><ul>"#);
+    let mut files = Vec::new();
     let mut read_dir = tokio::fs::read_dir(&full_path).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let path = entry.path();
         let path = path.strip_prefix(full_path.as_path())?.to_string_lossy();
-        body.push_str(&format!("<li><a href=\"{}\">{}</a></li>", path, path));
+        let metadata = entry.metadata().await?;
+        let is_dir = metadata.is_dir();
+        let modified = metadata.modified()?;
+        let created = metadata.created()?;
+        let modified_dt: DateTime<Local> = modified.into();
+        let created_dt: DateTime<Local> = created.into();
+        let file_size = metadata.len();
+        files.push(FileStat {
+            name: path.to_string(),
+            modified: modified_dt.format("%Y-%m-%d %T").to_string(),
+            created: created_dt.format("%Y-%m-%d %T").to_string(),
+            size: bytes_to_human_readable(file_size),
+            is_dir,
+            idx: 0,
+        });
     }
-    body.push_str("</ul></body></html>");
+    files.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+    for (idx, file) in files.iter_mut().enumerate() {
+        file.idx = idx;
+    }
+    println!("{:?}", files);
+    let template = jinja_env.get_template("listing.html")?;
+    let html = template
+        // .render(context! { files => files, css => include_str!("../files/bulma.min.css") })?;
+        .render(context! { files => files, css => include_str!("../files/style.css") })?;
+    return Ok(Response::new(Body::from(html)));
+}
 
-    return Ok(Response::new(Body::from(body)));
+fn bytes_to_human_readable(bytes: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let i = (bytes as f64).log2() / 10.0;
+    let i = i.floor() as usize;
+    let bytes = bytes as f64 / 1024_f64.powi(i as i32);
+    format!("{:.1} {}", bytes, units[i])
 }
