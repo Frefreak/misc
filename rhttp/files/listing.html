@@ -3,7 +3,7 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>File Listing</title>
+ <title>{%- if path == "" %} / {%- else %} {{ path }} {%- endif %}</title>
  <style>
   {{ css }}
  </style>
@@ -11,8 +11,17 @@
 <body>
  <section class="section">
   <div class="container">
-    <h1 class="title">File Listing</h1>
-    <table class="table is-bordered is-striped is-hoverable is-fullwidth styled-table">
+    <h1> <a href="/">root</a>
+      {%- for p in paths %}
+        /
+        {%- if not loop.last %}
+          <a href="/{{ p[0] }}">{{ p[1] }}</a>
+        {%- else %}
+          {{ p[1] }}
+        {% endif %}
+      {%- endfor %}
+    </h1>
+    <table>
       <thead>
         <tr>
           <th class="first"></th>
@@ -24,7 +33,7 @@
       </thead>
       <tbody>
         {%- for file in files %}
-        <tr {%- if file.idx % 2 == 1 %} class="alt" {%- endif %}>
+        <tr {%- if loop.index0 % 2 == 1 %} class="alt" {%- endif %}>
           <td class="first">{%- if file.is_dir %}📁{%- endif %}</td>
           <td><a href="{{ file.name }}">{{ file.name }}{%- if file.is_dir %}/{%- endif %}</a></td>
           <td class="date">{{ file.modified }}</td>

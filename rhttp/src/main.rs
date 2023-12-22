@@ -82,7 +82,6 @@ struct FileStat {
     created: String,
     size: String,
     is_dir: bool,
-    idx: usize,
 }
 
 async fn serve_not_found_helper<'a>(
@@ -90,8 +89,16 @@ async fn serve_not_found_helper<'a>(
     jinja_env: Environment<'a>,
     req: Request<Body>,
 ) -> Result<Response<Body>, BoxError> {
-    let (_, path) = req.uri().path().split_at(1);
-    let full_path = std::path::absolute(&opt.directory)?.join(path);
+    let (_, mut path) = req.uri().path().split_at(1);
+    if path.contains("..") {
+        return Ok(Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("not found"))?);
+    }
+    if path.ends_with("/") {
+        path = &path[..path.len() - 1];
+    }
+    let full_path = Path::new(&opt.directory).join(&path);
     let meta = tokio::fs::metadata(&full_path).await?;
     if !meta.is_dir() {
         return Ok(Response::builder()
@@ -103,7 +110,7 @@ async fn serve_not_found_helper<'a>(
     let mut read_dir = tokio::fs::read_dir(&full_path).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let path = entry.path();
-        let path = path.strip_prefix(full_path.as_path())?.to_string_lossy();
+        let path = path.strip_prefix(&full_path)?.to_string_lossy();
         let metadata = entry.metadata().await?;
         let is_dir = metadata.is_dir();
         let modified = metadata.modified()?;
@@ -117,18 +124,28 @@ async fn serve_not_found_helper<'a>(
             created: created_dt.format("%Y-%m-%d %T").to_string(),
             size: bytes_to_human_readable(file_size),
             is_dir,
-            idx: 0,
         });
     }
     files.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
-    for (idx, file) in files.iter_mut().enumerate() {
-        file.idx = idx;
-    }
-    println!("{:?}", files);
+    let paths = if path.is_empty() {
+        Vec::new()
+    } else {
+        path.split("/").scan((String::new(), String::new()), |st, seg| {
+            if st.0.is_empty() {
+                *st = (seg.into(), seg.into());
+            } else {
+                *st = (format!("{}/{}", st.0, seg), seg.into());
+            }
+            Some(st.clone())
+        }).collect()
+    };
+    log::info!("{:?}", paths);
     let template = jinja_env.get_template("listing.html")?;
-    let html = template
-        // .render(context! { files => files, css => include_str!("../files/bulma.min.css") })?;
-        .render(context! { files => files, css => include_str!("../files/style.css") })?;
+    let html = template.render(
+        context! { files => files, css => include_str!("../files/style.css"),
+        path => path,
+        paths => paths }
+    )?;
     return Ok(Response::new(Body::from(html)));
 }
 
