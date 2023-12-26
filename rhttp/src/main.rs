@@ -1,5 +1,5 @@
 #![feature(absolute_path)]
-use std::{convert::Infallible, path::Path, time::SystemTime};
+use std::{convert::Infallible, path::Path};
 
 use axum::{
     body::Body,
@@ -34,6 +34,9 @@ async fn main() {
     jinja_env
         .add_template("listing.html", include_str!("../files/listing.html"))
         .unwrap();
+    jinja_env
+        .add_template("upload.html", include_str!("../files/upload.html"))
+        .unwrap();
     let jinja_env_m = jinja_env.clone();
     let serve_dir = ServeDir::new(opt.directory.clone()).fallback(service_fn(move |req| {
         serve_not_found(opt_m.clone(), jinja_env_m.clone(), req)
@@ -42,7 +45,7 @@ async fn main() {
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
         .nest_service("/", serve_dir)
-        .with_state(opt)
+        // .with_state(opt)
         .with_state(jinja_env)
         .layer(TraceLayer::new_for_http());
 
@@ -50,10 +53,17 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn upload_get(State(opts): State<Opts>) -> &'static str {
-    todo!()
+async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Body> {
+    let template = jinja_env.get_template("upload.html").unwrap();
+    let html = template
+        // .render(context! { css => include_str!("../files/bulma.min.css") })?;
+        .render(context! { }).unwrap();
+    Response::builder()
+        .header("Content-Type", "text/html")
+        .body(Body::from(html)).unwrap()
 }
-async fn upload_post(State(opts): State<Opts>) -> &'static str {
+
+async fn upload_post() -> &'static str {
     todo!()
 }
 
@@ -146,7 +156,9 @@ async fn serve_not_found_helper<'a>(
         path => path,
         paths => paths }
     )?;
-    return Ok(Response::new(Body::from(html)));
+    return Ok(Response::builder()
+        .header("Content-Type", "text/html")
+        .body(Body::from(html))?);
 }
 
 fn bytes_to_human_readable(bytes: u64) -> String {
