@@ -3,7 +3,7 @@ use std::{convert::Infallible, path::Path};
 
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Multipart, State},
     http::{Request, Response, StatusCode},
     routing::{get, post},
     BoxError, Router,
@@ -12,6 +12,7 @@ use chrono::{DateTime, Local};
 use clap::Parser;
 use minijinja::{context, Environment};
 use serde::Serialize;
+use tokio::io::AsyncWriteExt;
 use tower::service_fn;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing_subscriber::EnvFilter;
@@ -57,14 +58,50 @@ async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Bo
     let template = jinja_env.get_template("upload.html").unwrap();
     let html = template
         // .render(context! { css => include_str!("../files/bulma.min.css") })?;
-        .render(context! { }).unwrap();
+        .render(context! {})
+        .unwrap();
     Response::builder()
         .header("Content-Type", "text/html")
-        .body(Body::from(html)).unwrap()
+        .body(Body::from(html))
+        .unwrap()
 }
 
-async fn upload_post() -> &'static str {
-    todo!()
+use axum_macros::debug_handler;
+#[debug_handler]
+async fn upload_post(mut multipart: Multipart) -> Result<Response<Body>, StatusCode> {
+    if let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
+        if let Some(name) = field.name() {
+            if let Some(filename) = field.file_name() {
+                if name != "file" {
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(Body::from(""))
+                        .unwrap());
+                }
+                let filename = filename.to_owned();
+                let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                let mut file = tokio::fs::File::create(filename.clone())
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                file.write_all(&data)
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                log::info!("file saved: \x1b[32;1m{filename}\x1b[0m");
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Body::from("ok"))
+                    .unwrap());
+            }
+        }
+    }
+    return Ok(Response::builder()
+        .status(StatusCode::BAD_REQUEST)
+        .body(Body::from(""))
+        .unwrap());
 }
 
 async fn serve_not_found<'a>(
@@ -140,21 +177,23 @@ async fn serve_not_found_helper<'a>(
     let paths = if path.is_empty() {
         Vec::new()
     } else {
-        path.split("/").scan((String::new(), String::new()), |st, seg| {
-            if st.0.is_empty() {
-                *st = (seg.into(), seg.into());
-            } else {
-                *st = (format!("{}/{}", st.0, seg), seg.into());
-            }
-            Some(st.clone())
-        }).collect()
+        path.split("/")
+            .scan((String::new(), String::new()), |st, seg| {
+                if st.0.is_empty() {
+                    *st = (seg.into(), seg.into());
+                } else {
+                    *st = (format!("{}/{}", st.0, seg), seg.into());
+                }
+                Some(st.clone())
+            })
+            .collect()
     };
     log::info!("{:?}", paths);
     let template = jinja_env.get_template("listing.html")?;
     let html = template.render(
         context! { files => files, css => include_str!("../files/style.css"),
         path => path,
-        paths => paths }
+        paths => paths },
     )?;
     return Ok(Response::builder()
         .header("Content-Type", "text/html")
