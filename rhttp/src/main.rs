@@ -1,5 +1,5 @@
 #![feature(absolute_path)]
-use std::{convert::Infallible, path::Path};
+use std::{convert::Infallible, path::Path, sync::OnceLock};
 
 use axum::{
     body::Body,
@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
     BoxError, Router,
 };
+use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use minijinja::{context, Environment};
@@ -15,7 +16,9 @@ use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use tower::service_fn;
 use tower_http::{services::ServeDir, trace::TraceLayer};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+
+static PATTERN_BG: OnceLock<String> = OnceLock::new();
 
 #[derive(Parser, Clone)]
 struct Opts {
@@ -26,9 +29,10 @@ struct Opts {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::DEBUG.into())
+        .from_env_lossy();
+    tracing_subscriber::fmt().with_env_filter(filter).init();
     let opt = Opts::parse();
     let opt_m = opt.clone();
     let mut jinja_env = Environment::new();
@@ -45,6 +49,7 @@ async fn main() {
     let app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
+        // .route("/css/bulma.min.css", get(bulma_css_get))
         .nest_service("/", serve_dir)
         // .with_state(opt)
         .with_state(jinja_env)
@@ -56,9 +61,13 @@ async fn main() {
 
 async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Body> {
     let template = jinja_env.get_template("upload.html").unwrap();
+    let pattern: &String = PATTERN_BG.get_or_init(|| {
+        const PATTERN: &[u8] = include_bytes!("../files/pattern.png");
+        let encoded: String = general_purpose::STANDARD.encode(PATTERN);
+        format!("data:image/png; base64,{encoded}")
+    });
     let html = template
-        // .render(context! { css => include_str!("../files/bulma.min.css") })?;
-        .render(context! {})
+        .render(context! { css => include_str!("../files/bulma.min.css") , background => pattern})
         .unwrap();
     Response::builder()
         .header("Content-Type", "text/html")
@@ -66,8 +75,13 @@ async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Bo
         .unwrap()
 }
 
-use axum_macros::debug_handler;
-#[debug_handler]
+// async fn bulma_css_get() -> Response<Body> {
+//     Response::builder()
+//         .header("Content-Type", "text/css")
+//         .body(Body::from(include_str!("../files/bulma.min.css")))
+//         .unwrap()
+// }
+
 async fn upload_post(mut multipart: Multipart) -> Result<Response<Body>, StatusCode> {
     if let Some(field) = multipart
         .next_field()
@@ -188,7 +202,7 @@ async fn serve_not_found_helper<'a>(
             })
             .collect()
     };
-    log::info!("{:?}", paths);
+    // log::info!("{:?}", paths);
     let template = jinja_env.get_template("listing.html")?;
     let html = template.render(
         context! { files => files, css => include_str!("../files/style.css"),

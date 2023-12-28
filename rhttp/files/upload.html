@@ -3,9 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
     <title>Upload</title>
     <style>
-      {{ css }}
+      {{ css | safe }}
+    </style>
+    <!-- <link rel="stylesheet" href="/css/bulma.min.css"></style> -->
+    <style>
+      .box{background-image:url("{{ background | safe }}");}
+      .input,.button {
+        height: 2.6em;
+      }
     </style>
   </head>
   <body>
