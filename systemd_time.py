@@ -2,6 +2,10 @@ import ctypes
 from ctypes import POINTER, pointer
 from typing import Tuple, Optional
 
+USEC_PER_SEC = 1_000_000
+USEC_PER_MSEC = 1_000
+FORMAT_TIMESPAN_MAX = 64
+
 
 class CalendarComponent(ctypes.Structure):
     def __repr__(self):
@@ -129,8 +133,6 @@ def parse_timestamp(s: str) -> int:
         return arg2.contents.value
     return ret
 
-USEC_PER_SEC = 1_000_000
-
 def parse_time(s: str) -> int:
     LIB.parse_time.argtypes = [
         ctypes.c_char_p,
@@ -146,6 +148,25 @@ def parse_time(s: str) -> int:
     return ret
 
 
+def format_timespan(usec: int) -> str:
+    LIB.format_timespan.argtypes = [
+        ctypes.c_char_p,
+        ctypes.c_int64,
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+    ]
+    LIB.format_timespan.restype = ctypes.c_char_p
+
+    arg1 = ctypes.create_string_buffer(FORMAT_TIMESPAN_MAX)
+    arg2 = FORMAT_TIMESPAN_MAX
+    arg3 = usec
+    arg4 = 0
+    ret = LIB.format_timespan(arg1, arg2, arg3, arg4)
+    if ret:
+        return ret.decode()
+    return ""
+
+
 
 def print_component(name: str, ptr, layer: int):
     if name:
@@ -159,6 +180,7 @@ def print_component(name: str, ptr, layer: int):
 
 def main():
     print(parse_time("2h"))
+    print(format_timespan(1000000))
     # ret, spec = calendar_spec_from_string(sys.argv[1])
     # pass
     # if ret != 0:
