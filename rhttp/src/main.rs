@@ -6,11 +6,12 @@ use axum::{
     extract::{Multipart, State},
     http::{Request, Response, StatusCode},
     routing::{get, post},
-    BoxError, Router,
+    BoxError, Router, middleware::from_fn_with_state,
 };
 use base64::{engine::general_purpose, Engine as _};
+use basic_auth::{authenticator, BasicAuth};
 use chrono::{DateTime, Local};
-use clap::Parser;
+use clap::{Parser, error::ErrorKind};
 use minijinja::{context, Environment};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
@@ -20,11 +21,29 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 static PATTERN_BG: OnceLock<String> = OnceLock::new();
 
+mod basic_auth;
+
 #[derive(Parser, Clone)]
 struct Opts {
     /// root directory to serve
     #[clap(short, long, aliases=&["dir"], default_value=".")]
     directory: String,
+
+    /// listen port
+    #[clap(short, long, default_value="3000")]
+    port: u16,
+
+    /// basic auth
+    #[clap(short, long, value_parser=parse_basic_auth)]
+    auth: Option<BasicAuth>,
+}
+
+fn parse_basic_auth(arg: &str) -> Result<BasicAuth, clap::Error> {
+    let segs = arg.split(':').collect::<Vec<_>>();
+    if segs.len() < 2 {
+        return Err(clap::Error::new(ErrorKind::InvalidValue));
+    }
+    Ok(BasicAuth::new(segs[0].into(), segs[1].into()))
 }
 
 #[tokio::main]
@@ -46,7 +65,9 @@ async fn main() {
     let serve_dir = ServeDir::new(opt.directory.clone()).fallback(service_fn(move |req| {
         serve_not_found(opt_m.clone(), jinja_env_m.clone(), req)
     }));
-    let app = Router::new()
+
+
+    let mut app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
         // .route("/css/bulma.min.css", get(bulma_css_get))
@@ -54,6 +75,9 @@ async fn main() {
         // .with_state(opt)
         .with_state(jinja_env)
         .layer(TraceLayer::new_for_http());
+    if let Some(auth) = opt.auth {
+        app = app.route_layer(from_fn_with_state(auth, authenticator));
+    }
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
