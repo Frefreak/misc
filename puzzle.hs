@@ -18,15 +18,18 @@ show' r = let (a, b) = (numerator r, denominator r) in
 possibleResults :: Solver -> Solver -> [Solver]
 possibleResults (astr, a) (bstr, b) =
     let format op = "(" <> astr <> " " <> op <> " " <> bstr <> ")"
+        format' op = "(" <> bstr <> " " <> op <> " " <> astr <> ")"
         atimesb = format "*"
         adivb = format "/"
+        adivb' = format' "/"
         aplusb = format "+"
         aminusb = format "-"
+        aminusb' = format' "-"
     in
     case b of
-        0 -> [(atimesb, a * b), (aplusb, a + b), (aminusb, a - b)]
+        0 -> [(atimesb, a * b), (aplusb, a + b), (aminusb, a - b), (aminusb', b - a)]
         _ -> [(atimesb, a * b), (aplusb, a + b),
-                (aminusb, a - b), (adivb, a / b)]
+                (aminusb, a - b), (adivb, a / b), (adivb', b / a), (aminusb', b - a)]
 
 allPossibleResults :: [Rational] -> [Solver]
 allPossibleResults [] = []
