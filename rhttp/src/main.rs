@@ -5,13 +5,14 @@ use axum::{
     body::Body,
     extract::{Multipart, State},
     http::{Request, Response, StatusCode},
+    middleware::from_fn_with_state,
     routing::{get, post},
-    BoxError, Router, middleware::from_fn_with_state,
+    BoxError, Router,
 };
 use base64::{engine::general_purpose, Engine as _};
 use basic_auth::{authenticator, BasicAuth};
 use chrono::{DateTime, Local};
-use clap::{Parser, error::ErrorKind};
+use clap::{error::ErrorKind, Parser};
 use minijinja::{context, Environment};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
@@ -30,7 +31,7 @@ struct Opts {
     directory: String,
 
     /// listen port
-    #[clap(short, long, default_value="3000")]
+    #[clap(short, long, default_value = "3000")]
     port: u16,
 
     /// basic auth
@@ -66,7 +67,6 @@ async fn main() {
         serve_not_found(opt_m.clone(), jinja_env_m.clone(), req)
     }));
 
-
     let mut app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
@@ -79,7 +79,9 @@ async fn main() {
         app = app.route_layer(from_fn_with_state(auth, authenticator));
     }
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", opt.port))
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
