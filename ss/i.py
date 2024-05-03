@@ -85,7 +85,8 @@ def install(args):
     print(f"downloading with trojan url: {download_url}")
     ts = time.strftime("%Y%m%d_%H%M%S")
     conn.run(f"mkdir {ts}")
-    conn.run(f"cd {ts} && apt install unzip -y && curl -L {download_url} -o trojan.zip && unzip trojan.zip")
+    conn.sudo("apt install unzip -y")
+    conn.run(f"cd {ts} && curl -L {download_url} -o trojan.zip && unzip trojan.zip")
 
     # make config
     password = mk_random_password(20)
