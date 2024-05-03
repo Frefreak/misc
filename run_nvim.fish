@@ -4,6 +4,7 @@ set term_exec alacritty
 set nvim_exec nvim
 set server_path "$HOME/.cache/nvim/godot-server.pipe"
 set filename (echo "$argv[1]" | string replace " " "\ ")
+echo "$filename" >> /tmp/wtf
 
 function start_server
 	$term_exec -e "$nvim_exec" --listen "$server_path" "$argv[1]"
@@ -14,7 +15,7 @@ function open_file_in_server
 end
 
 if ! test -e "$server_path"
-	start_server "$argv[1]"
+	start_server "$filename"
 else 
-	open_file_in_server "$argv[1]"
+	open_file_in_server "$filename"
 end
