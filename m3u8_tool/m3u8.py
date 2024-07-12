@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFormLayout,
                              QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 JOB = 7
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
+USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0'
 
 def parse(txt: str, base: str):
     lns = txt.splitlines()
@@ -164,8 +164,8 @@ class Cookie(QWidget, AlertMixin):
         if (txt := txt.strip())[:7].lower() == 'cookie:':
             txt = txt[7:].strip()
         kv_collect = []
-        for kv in txt.split(';'):
-            kvs = kv.strip().split('=')
+        for kv in txt.split('; '):
+            kvs = kv.strip().split('=', maxsplit=1)
             if len(kvs) != 2:
                 self.alert(f'error parsing cookie key-value: {kv}')
                 continue
@@ -396,7 +396,7 @@ class MainWindow(QMainWindow, AlertMixin):
                         k, v = line.split(' ', 1)
                         header[k.strip()] = v.strip()
         except FileNotFoundError:
-            pass
+            print('.header missing')
         try:
             resp = requests.get(url, headers=header)
         except Exception as e:
