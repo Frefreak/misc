@@ -182,10 +182,10 @@ async fn serve_not_found_helper<'a>(
             .status(StatusCode::NOT_FOUND)
             .body(Body::from("not found"))?);
     }
-    if path.ends_with("/") {
+    if path.ends_with('/') {
         path = &path[..path.len() - 1];
     }
-    let full_path = Path::new(&opt.directory).join(&path);
+    let full_path = Path::new(&opt.directory).join(path);
     let meta = tokio::fs::metadata(&full_path).await?;
     if !meta.is_dir() {
         return Ok(Response::builder()
@@ -201,7 +201,7 @@ async fn serve_not_found_helper<'a>(
         let metadata = entry.metadata().await?;
         let is_dir = metadata.is_dir();
         let modified = metadata.modified()?;
-        let created = metadata.created()?;
+        let created = metadata.created().unwrap_or(modified);
         let modified_dt: DateTime<Local> = modified.into();
         let created_dt: DateTime<Local> = created.into();
         let file_size = metadata.len();
@@ -217,7 +217,7 @@ async fn serve_not_found_helper<'a>(
     let paths = if path.is_empty() {
         Vec::new()
     } else {
-        path.split("/")
+        path.split('/')
             .scan((String::new(), String::new()), |st, seg| {
                 if st.0.is_empty() {
                     *st = (seg.into(), seg.into());
@@ -235,9 +235,9 @@ async fn serve_not_found_helper<'a>(
         path => path,
         paths => paths },
     )?;
-    return Ok(Response::builder()
+    Ok(Response::builder()
         .header("Content-Type", "text/html")
-        .body(Body::from(html))?);
+        .body(Body::from(html))?)
 }
 
 fn bytes_to_human_readable(bytes: u64) -> String {
