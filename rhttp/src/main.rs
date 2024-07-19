@@ -1,10 +1,9 @@
-#![feature(absolute_path)]
-use std::{convert::Infallible, path::Path, sync::OnceLock};
+use std::{convert::Infallible, path::Path, sync::OnceLock, time::SystemTime};
 
 use axum::{
     body::Body,
     extract::{Multipart, State},
-    http::{Request, Response, StatusCode},
+    http::{Method, Request, Response, StatusCode},
     middleware::from_fn_with_state,
     routing::{get, post},
     BoxError, Router,
@@ -17,7 +16,11 @@ use minijinja::{context, Environment};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use tower::service_fn;
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 static PATTERN_BG: OnceLock<String> = OnceLock::new();
@@ -37,6 +40,10 @@ struct Opts {
     /// basic auth
     #[clap(short, long, value_parser=parse_basic_auth)]
     auth: Option<BasicAuth>,
+
+    /// allow cors
+    #[clap(long, default_value = "false")]
+    cors: bool,
 }
 
 fn parse_basic_auth(arg: &str) -> Result<BasicAuth, clap::Error> {
@@ -45,6 +52,12 @@ fn parse_basic_auth(arg: &str) -> Result<BasicAuth, clap::Error> {
         return Err(clap::Error::new(ErrorKind::InvalidValue));
     }
     Ok(BasicAuth::new(segs[0].into(), segs[1].into()))
+}
+
+#[derive(Clone)]
+struct AppState<'a> {
+    jinja_env: Environment<'a>,
+    opt: Opts,
 }
 
 #[tokio::main]
@@ -66,17 +79,28 @@ async fn main() {
     let serve_dir = ServeDir::new(opt.directory.clone()).fallback(service_fn(move |req| {
         serve_not_found(opt_m.clone(), jinja_env_m.clone(), req)
     }));
+    let st = AppState {
+        jinja_env,
+        opt: opt.clone(),
+    };
 
     let mut app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
         // .route("/css/bulma.min.css", get(bulma_css_get))
         .nest_service("/", serve_dir)
-        // .with_state(opt)
-        .with_state(jinja_env)
+        .with_state(st)
         .layer(TraceLayer::new_for_http());
+
     if let Some(auth) = opt.auth {
         app = app.route_layer(from_fn_with_state(auth, authenticator));
+    }
+    if opt.cors {
+        let cors = CorsLayer::new()
+            .allow_methods([Method::GET, Method::POST])
+            .allow_origin(Any);
+
+        app = app.layer(cors);
     }
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", opt.port))
@@ -85,8 +109,8 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Body> {
-    let template = jinja_env.get_template("upload.html").unwrap();
+async fn upload_get(State(st): State<AppState<'_>>) -> Response<Body> {
+    let template = st.jinja_env.get_template("upload.html").unwrap();
     let pattern: &String = PATTERN_BG.get_or_init(|| {
         const PATTERN: &[u8] = include_bytes!("../files/pattern.png");
         let encoded: String = general_purpose::STANDARD.encode(PATTERN);
@@ -108,7 +132,10 @@ async fn upload_get<'a>(State(jinja_env): State<Environment<'a>>) -> Response<Bo
 //         .unwrap()
 // }
 
-async fn upload_post(mut multipart: Multipart) -> Result<Response<Body>, StatusCode> {
+async fn upload_post(
+    State(st): State<AppState<'_>>,
+    mut multipart: Multipart,
+) -> Result<Response<Body>, StatusCode> {
     if let Some(field) = multipart
         .next_field()
         .await
@@ -124,7 +151,8 @@ async fn upload_post(mut multipart: Multipart) -> Result<Response<Body>, StatusC
                 }
                 let filename = filename.to_owned();
                 let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-                let mut file = tokio::fs::File::create(filename.clone())
+                let dest = Path::new(&st.opt.directory).join(&filename);
+                let mut file = tokio::fs::File::create(dest)
                     .await
                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 file.write_all(&data)
@@ -138,15 +166,15 @@ async fn upload_post(mut multipart: Multipart) -> Result<Response<Body>, StatusC
             }
         }
     }
-    return Ok(Response::builder()
+    Ok(Response::builder()
         .status(StatusCode::BAD_REQUEST)
         .body(Body::from(""))
-        .unwrap());
+        .unwrap())
 }
 
-async fn serve_not_found<'a>(
+async fn serve_not_found(
     opt: Opts,
-    jinja_env: Environment<'a>,
+    jinja_env: Environment<'_>,
     req: Request<Body>,
 ) -> Result<Response<Body>, Infallible> {
     let uri = req.uri().to_string();
@@ -171,9 +199,9 @@ struct FileStat {
     is_dir: bool,
 }
 
-async fn serve_not_found_helper<'a>(
+async fn serve_not_found_helper(
     opt: Opts,
-    jinja_env: Environment<'a>,
+    jinja_env: Environment<'_>,
     req: Request<Body>,
 ) -> Result<Response<Body>, BoxError> {
     let (_, mut path) = req.uri().path().split_at(1);
@@ -201,6 +229,7 @@ async fn serve_not_found_helper<'a>(
         let metadata = entry.metadata().await?;
         let is_dir = metadata.is_dir();
         let modified = metadata.modified()?;
+        // TODO: https://users.rust-lang.org/t/musl-and-file-creation-time/111559/3
         let created = metadata.created().unwrap_or(modified);
         let modified_dt: DateTime<Local> = modified.into();
         let created_dt: DateTime<Local> = created.into();
