@@ -61,7 +61,7 @@ def parse(txt: str, base: str):
             attrs = {}
             for kv in attrs_text.split(','):
                 if '=' in kv:
-                    t = kv.split('=')
+                    t = kv.split('=', 1)
                     if len(t) == 2:
                         attrs[t[0]] = t[1]
             if attrs.get('METHOD') and (uri := attrs.get('URI')):
