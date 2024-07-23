@@ -2,7 +2,7 @@ use std::{convert::Infallible, path::Path, sync::OnceLock, time::SystemTime};
 
 use axum::{
     body::Body,
-    extract::{Multipart, State},
+    extract::{DefaultBodyLimit, Multipart, State},
     http::{Method, Request, Response, StatusCode},
     middleware::from_fn_with_state,
     routing::{get, post},
@@ -87,6 +87,7 @@ async fn main() {
     let mut app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         // .route("/css/bulma.min.css", get(bulma_css_get))
         .nest_service("/", serve_dir)
         .with_state(st)
@@ -150,7 +151,10 @@ async fn upload_post(
                         .unwrap());
                 }
                 let filename = filename.to_owned();
-                let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                let data = field.bytes().await.map_err(|err| {
+                    log::error!("{err:?}");
+                    StatusCode::BAD_REQUEST
+                })?;
                 let dest = Path::new(&st.opt.directory).join(&filename);
                 let mut file = tokio::fs::File::create(dest)
                     .await
