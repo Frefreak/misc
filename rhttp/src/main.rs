@@ -1,4 +1,4 @@
-use std::{convert::Infallible, path::Path, sync::OnceLock, time::SystemTime};
+use std::{convert::Infallible, path::Path, sync::OnceLock};
 
 use axum::{
     body::Body,

@@ -1,9 +1,7 @@
 use axum::{
-    extract::{Request, State},
-    middleware::Next,
-    response::Response,
+    extract::{Request, State}, middleware::Next, response::Response
 };
-use axum_auth::AuthBasic;
+use base64::{engine::general_purpose, Engine};
 
 #[derive(Clone)]
 pub struct BasicAuth {
@@ -14,24 +12,34 @@ pub struct BasicAuth {
 
 impl BasicAuth {
     pub fn new(user: String, pass: String) -> BasicAuth {
-        return BasicAuth {user, pass};
+        Self {user, pass}
     }
 }
 
 pub async fn authenticator(
-    AuthBasic((username, password)): AuthBasic,
     State(auth): State<BasicAuth>,
     request: Request,
     next: Next,
 ) -> Response {
-    if let Some(password) = password {
-        if username == auth.user && password == auth.pass {
-            return next.run(request).await;
+    if let Some(auth_header) = request.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(rem) = auth_str.strip_prefix("Basic ") {
+                if let Ok(decoded) = general_purpose::STANDARD.decode(rem) {
+                    if let Ok(credentials) = String::from_utf8(decoded) {
+                        let mut split = credentials.splitn(2, ':');
+                        if let (Some(username), Some(password)) = (split.next(), split.next()) {
+                            if username == auth.user && password == auth.pass {
+                                return next.run(request).await;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
-    return Response::builder()
+    Response::builder()
         .status(401)
         .header("WWW-Authenticate", "Basic")
         .body("Unauthorized".into())
-        .unwrap();
+        .unwrap()
 }
