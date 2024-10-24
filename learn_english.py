@@ -2,6 +2,7 @@
 
 import os
 import time
+import random
 import pickle
 from typing import List, Tuple
 from openai import OpenAI, RateLimitError
@@ -32,13 +33,10 @@ def mk_prompt(input_resps, new_txt):
 
 example input:
 
-```
 Fountainport loomed over the largest pond in Valley. The graceful spire of water magically spouting from a carved lily above the throne room was visible long before Helga and the others reached the Tadpool Harbor District at the base. Each level was a work of art, three basins carved from soapstone and embellished with curved designs: flower petals, lapping waves, stylized frogfolk faces. Large portcullises beneath the city allowed animalfolk to stream into the docks, eager to join year-round celebrations encouraged or directly sponsored by King Glarb himself.
-```
 
 example response:
 
-```
 > Fountainport loomed over the largest pond in Valley. The graceful spire of water magically spouting from a carved lily above the throne room was visible long before Helga and the others reached the Tadpool Harbor District at the base.
 
 - loomed: To appear as a large, often frightening or threatening shape (高耸，逼近)
@@ -67,7 +65,6 @@ This sentence describes the intricate design of the fountain, emphasizing its ar
 This part describes the entrance to the city, where many animal-like creatures enter through large gates to participate in ongoing festivities supported by their king.
 
 **summary**：这部分描述了一个名为喷泉港的奇幻城市。它建在一个大池塘上，以一个华丽的魔法喷泉为中心。这个喷泉有三层精心雕刻的水池，装饰着各种图案。城市下方有大门，让拟人化的动物居民进入码头区，参加国王赞助的全年庆典活动。
-```
 """,
         }
     )
@@ -101,8 +98,8 @@ This part describes the entrance to the city, where many animal-like creatures e
 
 client = OpenAI(
     api_key=os.getenv("API_KEY", ""),
-    # base_url="http://localhost:38000/v1",
-    base_url = "https://api.moonshot.cn/v1",
+    base_url="http://localhost:38000/v1",
+    # base_url = "https://api.moonshot.cn/v1",
 )
 
 
@@ -170,20 +167,23 @@ def do_work(progress: Progress):
         if resp is None:
             print("llm failed")
             exit(1)
+        if '内容由于不合规被停止生成' in resp:
+            print('resp invalid, need manual handling')
+            exit(1)
         with open("output.md", "a") as f:
             f.write(txt)
             f.write("\n\n" + resp)
             f.write("\n\n--------------\n\n")
         progress.update(txt, resp)
         save_progress(progress)
-        time.sleep(3)
+        time.sleep(random.randrange(30, 70) / 10.)
 
 
 def feed_llm(progress: Progress, txt):
     messages = mk_prompt(progress.previous_resp, txt)
     response = client.chat.completions.create(
-        # model="kimi",
-        model="moonshot-v1-8k",
+        model="kimi",
+        # model="moonshot-v1-8k",
         messages=messages,  # type: ignore
     )
     return response.choices[0].message.content
