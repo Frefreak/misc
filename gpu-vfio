@@ -54,10 +54,15 @@ def check_no_running_processes():
 def bind_vfio():
     # make sure no processes are using nvidia with nvidia-smi
     check_no_running_processes()
-    with open(f"/sys/bus/pci/devices/{gpu}/driver/unbind", "w") as f:
-        f.write(gpu)
-    with open(f"/sys/bus/pci/devices/{aud}/driver/unbind", "w") as f:
-        f.write(aud)
+    subprocess.run(["modprobe", "-r", "nvidia_drm"])
+    subprocess.run(["modprobe", "-r", "nvidia_modeset"])
+    subprocess.run(["modprobe", "-r", "nvidia_uvm"])
+    subprocess.run(["modprobe", "-r", "nvidia"])
+    time.sleep(3)
+    # with open(f"/sys/bus/pci/devices/{gpu}/driver/unbind", "w") as f:
+    #     f.write(gpu)
+    # with open(f"/sys/bus/pci/devices/{aud}/driver/unbind", "w") as f:
+    #     f.write(aud)
     with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
         f.write(gpu_vd)
     with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
