@@ -61,8 +61,8 @@ def bind_vfio():
     time.sleep(3)
     # with open(f"/sys/bus/pci/devices/{gpu}/driver/unbind", "w") as f:
     #     f.write(gpu)
-    # with open(f"/sys/bus/pci/devices/{aud}/driver/unbind", "w") as f:
-    #     f.write(aud)
+    with open(f"/sys/bus/pci/devices/{aud}/driver/unbind", "w") as f:
+        f.write(aud)
     with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
         f.write(gpu_vd)
     with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
@@ -103,6 +103,7 @@ def main():
         unbind_vfio()
     elif args.action == "chk":
         print(driver)
+        print(gpu_vd, aud_vd)
 
 
 if __name__ == "__main__":
