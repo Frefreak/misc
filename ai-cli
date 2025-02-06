@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -50,6 +51,7 @@ class Config(BaseModel):
     )
     params: Param
     buffer_ft: str = "markdown"
+    reasoning_mixed: bool = False
     # hide from serde
     api_key: str = Field(default="", exclude=True)
 
@@ -63,6 +65,7 @@ DEFAULT_CONFIG = Config(
     api_key_cred_cmd="pass deepseek-api",
     params=Param(),
     buffer_ft="markdown",
+    reasoning_mixed=False,
 )
 
 CONFIG_DIR = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
@@ -205,7 +208,14 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
             print(seg, end="", flush=True)
             resp_str += seg
     print()
-    return resp_str, reasoning_str if reasoning_str != "" else None
+    if config.reasoning_mixed:
+        g = re.match("<think>(.*)</think>(.*)", resp_str, re.DOTALL)
+        if g is None:
+            eprint("not expected format")
+            exit(1)
+        return g.group(2).strip(), g.group(1).strip()
+    else:
+        return resp_str, reasoning_str if reasoning_str != "" else None
 
 
 class QueryFlag(Enum):
@@ -238,7 +248,12 @@ Here is the question: {question}"""
 def query_duckduckgo_prompt(question: str, query: str) -> Tuple[str, List]:
     from duckduckgo_search import DDGS
 
+    if query[0] == '"' and query[-1] == '"':
+        query = query[1:-1]
     results = DDGS().text(query, max_results=10)
+    if len(results) == 0:
+        eprint("failed to get any search links")
+        exit(1)
     prompt = f"""I have a question and a few search results, please decide which one might be helpful to the question, please only respond in one line with the number. For example: "1 2 5" which means to select the first, second and 5th page. A few things to keep in mind:
     1. For the sake of accuracy, please include any potential page that may has the result
     2. Do not include pages that obviously have duplicated contents.
