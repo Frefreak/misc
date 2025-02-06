@@ -1,0 +1,363 @@
+#!/usr/bin/env python
+
+import json
+import os
+import subprocess
+import sys
+import time
+import argparse
+from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
+from threading import Thread
+from typing import List, Optional, Tuple
+
+import openai
+
+# import httpx
+import yaml
+import requests
+from pydantic import BaseModel, Field
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-m", "--model", help="model", required=False)
+
+
+class Model(str, Enum):
+    deepseek_chat = "deepseek-chat"
+    deepseek_reasoner = "deepseek-reasoner"
+    siliconflow_deepseek_r1 = "deepseek-ai/DeepSeek-R1"
+    siliconflow_deepseek_v3 = "deepseek-ai/DeepSeek-V3"
+    moonshot_v1_8k = "moonshot-v1-8k"
+    moonshot_v1_32k = "moonshot-v1-32k"
+    moonshot_v1_128k = "moonshot-v1-128k"
+    moonshot_v1_auto = "moonshot-v1-auto"
+
+
+class Param(BaseModel):
+    predict: int = 4096
+    temperature: float = 0.7
+    top_p: float = 0.97
+
+    class Config:
+        extra = "forbid"
+
+
+class Config(BaseModel):
+    endpoint: str = Field(description="OpenAI compatible endpoint URL")
+    model: Model = Model.deepseek_chat
+    api_key_cred_cmd: str = Field(
+        description="Command to get API key from credential store"
+    )
+    params: Param
+    buffer_ft: str = "markdown"
+    # hide from serde
+    api_key: str = Field(default="", exclude=True)
+
+    class Config:
+        extra = "forbid"
+
+
+DEFAULT_CONFIG = Config(
+    endpoint="https://api.deepseek.com",
+    model=Model.deepseek_chat,
+    api_key_cred_cmd="pass deepseek-api",
+    params=Param(),
+    buffer_ft="",
+)
+
+CONFIG_DIR = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+os.makedirs(CONFIG_DIR, exist_ok=True)
+CONFIG_FILE = os.path.join(CONFIG_DIR, "ai-cli.yaml")
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
+def periodic_refresh_cred():
+    config.api_key = (
+        subprocess.check_output(config.api_key_cred_cmd, shell=True).decode().strip()
+    )
+
+    def refresh_cred():
+        while True:
+            time.sleep(60)
+            config.api_key = (
+                subprocess.check_output(config.api_key_cred_cmd, shell=True)
+                .decode()
+                .strip()
+            )
+
+    th = Thread(target=refresh_cred)
+    th.daemon = True
+    th.start()
+
+
+config = DEFAULT_CONFIG.model_copy()
+if not os.path.exists(CONFIG_FILE):
+    with open(CONFIG_FILE, "w") as f:
+        j = DEFAULT_CONFIG.model_dump_json()
+        j_obj = json.loads(j)
+        default_config = yaml.dump(j_obj)
+        f.write(default_config)
+        eprint(f"Created config file {CONFIG_FILE}")
+        exit(0)
+
+
+buffer_file = "/tmp/ai-buffer"
+
+
+def parse_to_messages() -> Optional[List[Tuple[str, str]]]:
+    with open(buffer_file, "r") as f:
+        current_role = None
+        result = []
+        partial = []
+        for line in f:
+            if line in ["# user\n", "# assistant\n", "# system\n"]:
+                if current_role is not None:
+                    curr = "".join(partial).strip()
+                    if curr:
+                        result.append((current_role, curr))
+                    else:
+                        eprint(f"Empty message, current role: {current_role}")
+                        return None
+                current_role = line.strip().split("# ")[1]
+                partial = []
+            elif current_role is not None:
+                partial.append(line)
+        if current_role is None:
+            eprint("no role every detected")
+            return None
+        curr = "".join(partial).strip()
+        if curr:
+            result.append((current_role, curr))
+        else:
+            eprint(f"Empty message, current role: {current_role}")
+            return None
+        return result
+
+
+def spawn_nvim(prompts: List[Tuple[str, str]]):
+    with open(buffer_file, "w") as f:
+        for msg in prompts:
+            f.write(f"# {msg[0]}\n{msg[1]}\n\n")  # type: ignore
+
+        f.write("# user\n")
+
+    handle = subprocess.Popen(
+        [
+            "nvim",
+            "-c",
+            f"set ft={config.buffer_ft}",
+            "-c",
+            "normal Go",
+            "-c",
+            "normal 0D",
+            "-c",
+            ":start",
+            buffer_file,
+        ]
+    )
+    handle.wait()
+    r = parse_to_messages()
+    # print(r)
+    return r
+
+
+def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[str]]:
+    cli = openai.Client(
+        api_key=config.api_key,
+        base_url=config.endpoint,
+        # http_client=httpx.Client(verify=False),
+    )
+    resp = cli.chat.completions.create(
+        model=config.model,
+        messages=[
+            {"role": t[0], "content": t[1]} for t in messages if t[0] != "reasoning"
+        ],  # type: ignore
+        temperature=config.params.temperature,
+        max_tokens=config.params.predict,
+        top_p=config.params.top_p,
+        stream=True,
+    )
+    reasoning_str = ""
+    resp_str = ""
+    prev = None
+    for chunk in resp:
+        # print(chunk, flush=True)
+        if hasattr(chunk.choices[0].delta, "reasoning_content"):
+            if chunk.choices[0].delta.reasoning_content is not None:
+                if prev is None:
+                    print("\x1b[31;1m<think>\x1b[0m\n")
+                    prev = "reasoning"
+                seg = chunk.choices[0].delta.reasoning_content
+                print(seg, end="", flush=True)
+                reasoning_str += seg
+            elif chunk.choices[0].delta.content is not None:
+                if prev == "reasoning":
+                    prev = "content"
+                    print("\x1b[31;1m<think/>\x1b[0m\n\n")
+                seg = chunk.choices[0].delta.content
+                print(seg, end="", flush=True)
+                resp_str += seg
+        elif chunk.choices[0].delta.content is not None:
+            seg = chunk.choices[0].delta.content
+            print(seg, end="", flush=True)
+            resp_str += seg
+    print()
+    return resp_str, reasoning_str if reasoning_str != "" else None
+
+
+class QueryFlag(Enum):
+    NONE = 1
+    WebSearch = 2
+
+
+# currently only extract 'W' (web) flag
+def extract_flag(prompts: List[Tuple[str, str]]) -> QueryFlag:
+    if len(prompts) == 0 or prompts[-1][0] != "user":
+        eprint("last prompt is not role user")
+    last = prompts[-1][1]
+    first_line = last.split("\n")[0]
+    if first_line == "W":
+        prompts[-1] = (prompts[-1][0], "\n".join(last.split("\n")[1:]))
+        return QueryFlag.WebSearch
+    return QueryFlag.NONE
+
+
+def web_search_prompt_1(question: str):
+    prompt_text = f"""I have a question, please suggest a refined search query string based on the problem so I can search the web. A few things to keep in mind:
+        1. if the info may change over time, you decide whether to include year/date in the query (BTW current year is 2025)
+        2. Important: Only respond with the query string, do not include your analysis etc please
+        3. If possible, make your query string concise. Including the wrong keywords may lead to a wrong direction
+
+Here is the question: {question}"""
+    return prompt_text
+
+
+def query_duckduckgo_prompt(question: str, query: str) -> Tuple[str, List]:
+    from duckduckgo_search import DDGS
+
+    results = DDGS().text(query, max_results=10)
+    prompt = f"""I have a question and a few search results, please decide which one might be helpful to the question, please only respond in one line with the number. For example: "1 2 5" which means to select the first, second and 5th page. A few things to keep in mind:
+    1. For the sake of accuracy, please include any potential page that may has the result
+    2. Do not include pages that obviously have duplicated contents.
+    3. Always consider including official website for the related entity/subject
+
+### Here is the question
+{question}
+
+### Here is the search results
+
+"""
+    for i, result in enumerate(results):
+        prompt += f"{i + 1}. {result['title']}({result['href']}): {result['body']}\n\n"
+    return prompt, results
+
+
+def web_search_prompt_2(question: str, search_links: List) -> Optional[str]:
+    import html2text
+
+    def worker(title, link):
+        r = requests.get(
+            link,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0"
+            },
+        )
+        if r.status_code == 200:
+            return (title, html2text.html2text(r.text))
+        else:
+            eprint(f"failed to get {title} {link} {r.status_code}")
+        return None
+
+    pool = ThreadPoolExecutor(max_workers=len(search_links))
+    futures = []
+    for link in search_links:
+        futures.append(pool.submit(worker, link["title"], link["href"]))
+    search_texts = []
+    for future in futures:
+        result = future.result()
+        if result is not None:
+            search_texts.append(result)
+
+    prompt = f"""I have a question and a few related info texts, please try to answer it after
+carefully reading those content. If you think the answer can't be properly answered (lack of info)
+please just state it. Also if the answer is indeed in one/some of the pages, please include the source
+of link/title in your answer so I know where do you get the info.
+
+Here is the question:
+
+{question}
+
+Here is a potentially long wall of text of those infos, each separated by a long '---'
+"""
+    if len(search_texts) == 0:
+        print("No search results")
+        return None
+    for search_text in search_texts:
+        prompt += f"----------------------------\ntitle: {search_text[0]}\n{search_text[1]}\n\n"
+    return prompt
+
+
+def main():
+    global config
+    args = parser.parse_args()
+    with open(CONFIG_FILE, "r") as f:
+        j = yaml.safe_load(f)
+        if args.model is not None:
+            j["model"] = args.model
+        config = Config(**j)
+    periodic_refresh_cred()
+
+    history = []
+    while True:
+        prompts = spawn_nvim(history)
+        if prompts is None:
+            break
+        flag = extract_flag(prompts)
+        match flag:
+            case QueryFlag.WebSearch:
+                (_, question) = prompts[-1]
+                p = web_search_prompt_1(question)
+                print(p + "\n")
+                prompts[-1] = ("user", p)
+                resp, _ = do_chat_completion(prompts)
+
+                p2, search_links = query_duckduckgo_prompt(question, resp)
+                print(p2 + "\n")
+                prompts[-1] = ("user", p2)
+                resp, _ = do_chat_completion(prompts)
+                idxs = [int(x) - 1 for x in resp.split()]
+
+                print("\x1b[31;1mquering pages\x1b[0m")
+                p3 = web_search_prompt_2(question, [search_links[x] for x in idxs])
+                if p3 is None:
+                    break
+                print("\x1b[31;3m")
+                print(p3)
+                print("\x1b[0m")
+                prompts[-1] = ("user", p3)
+                resp, reasoning = do_chat_completion(prompts)
+
+                history = prompts
+                if reasoning is not None:
+                    history.append(("reasoning", reasoning))
+                history.append(("assistant", resp))
+
+            case QueryFlag.NONE:
+                resp, reasoning = do_chat_completion(prompts)
+
+                history = prompts
+                if reasoning is not None:
+                    history.append(("reasoning", reasoning))
+                history.append(("assistant", resp))
+
+def testing_page(link: str):
+    import html2text
+    r = requests.get(link)
+    print(html2text.html2text(r.text))
+
+if __name__ == "__main__":
+    main()
+    # testing_page('https://bbs.archlinux.org/viewtopic.php?id=291652')
