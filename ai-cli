@@ -240,6 +240,7 @@ def web_search_prompt_1(question: str):
         1. if the info may change over time, you decide whether to include year/date in the query (BTW current year is 2025)
         2. Important: Only respond with the query string, do not include your analysis etc please
         3. If possible, make your query string concise. Including the wrong keywords may lead to a wrong direction
+        4. Respond with just the keyword, do not wrap it with quote
 
 Here is the question: {question}"""
     return prompt_text
@@ -271,17 +272,19 @@ def query_duckduckgo_prompt(question: str, query: str) -> Tuple[str, List]:
 
 
 def web_search_prompt_2(question: str, search_links: List) -> Optional[str]:
-    import html2text
-
     def worker(title, link):
-        r = requests.get(
-            link,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0"
-            },
-        )
+        try:
+            r = requests.get(
+                link,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0"
+                },
+            )
+        except Exception as e:
+            eprint(f"failed to get {title} {link} {e}")
+            return None
         if r.status_code == 200:
-            return (title, html2text.html2text(r.text))
+            return (title, link, to_text_with_cleanup(r.text))
         else:
             eprint(f"failed to get {title} {link} {r.status_code}")
         return None
@@ -299,7 +302,7 @@ def web_search_prompt_2(question: str, search_links: List) -> Optional[str]:
     prompt = f"""I have a question and a few related info texts, please try to answer it after
 carefully reading those content. If you think the answer can't be properly answered (lack of info)
 please just state it. Also if the answer is indeed in one/some of the pages, please include the source
-of link/title in your answer so I know where do you get the info.
+of link and title in your answer so I know where do you get the info from.
 
 Here is the question:
 
@@ -311,7 +314,7 @@ Here is a potentially long wall of text of those infos, each separated by a long
         print("No search results")
         return None
     for search_text in search_texts:
-        prompt += f"----------------------------\ntitle: {search_text[0]}\n{search_text[1]}\n\n"
+        prompt += f"----------------------------\ntitle: {search_text[0]}\n{search_text[1]}\n{search_text[2]}\n\n"
     return prompt
 
 
@@ -333,6 +336,8 @@ def main():
         flag = extract_flag(prompts)
         match flag:
             case QueryFlag.WebSearch:
+                save_prompts, prompts = prompts[:-1], prompts[-1:]
+
                 (_, question) = prompts[-1]
                 p = web_search_prompt_1(question)
                 print(p + "\n")
@@ -355,10 +360,13 @@ def main():
                 prompts[-1] = ("user", p3)
                 resp, reasoning = do_chat_completion(prompts)
 
-                history = prompts
+                history = save_prompts
+                history.append(prompts[-1])
                 if reasoning is not None:
                     history.append(("reasoning", reasoning))
                 history.append(("assistant", resp))
+
+
 
             case QueryFlag.NONE:
                 resp, reasoning = do_chat_completion(prompts)
@@ -368,11 +376,18 @@ def main():
                     history.append(("reasoning", reasoning))
                 history.append(("assistant", resp))
 
-def testing_page(link: str):
+
+def to_text_with_cleanup(html: str) -> str:
     import html2text
-    r = requests.get(link)
-    print(html2text.html2text(r.text))
+    from lxml_html_clean import clean_html
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, 'lxml')
+    for s in soup.find_all('script'):
+        s.decompose()
+    r = html2text.html2text(clean_html(str(soup)))
+    return r
+
 
 if __name__ == "__main__":
     main()
-    # testing_page('https://bbs.archlinux.org/viewtopic.php?id=291652')
