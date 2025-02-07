@@ -14,9 +14,8 @@ from typing import List, Optional, Tuple
 
 import openai
 
-# import httpx
+import httpx
 import yaml
-import requests
 from pydantic import BaseModel, Field
 
 parser = argparse.ArgumentParser()
@@ -274,7 +273,7 @@ def query_duckduckgo_prompt(question: str, query: str) -> Tuple[str, List]:
 def web_search_prompt_2(question: str, search_links: List) -> Optional[str]:
     def worker(title, link):
         try:
-            r = requests.get(
+            r = httpx.get(
                 link,
                 headers={
                     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/109.0"
@@ -365,8 +364,6 @@ def main():
                 if reasoning is not None:
                     history.append(("reasoning", reasoning))
                 history.append(("assistant", resp))
-
-
 
             case QueryFlag.NONE:
                 resp, reasoning = do_chat_completion(prompts)
