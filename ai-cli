@@ -258,6 +258,7 @@ def query_duckduckgo_prompt(question: str, query: str) -> Tuple[str, List]:
     1. For the sake of accuracy, please include any potential page that may has the result
     2. Do not include pages that obviously have duplicated contents.
     3. Always consider including official website for the related entity/subject
+    4. If you are confident, you are free to select no pages (respond with a single 0) or limit your choices to only 1 or 2 pages
 
 ### Here is the question
 {question}
@@ -347,7 +348,12 @@ def main():
                 print(p2 + "\n")
                 prompts[-1] = ("user", p2)
                 resp, _ = do_chat_completion(prompts)
-                idxs = [int(x) - 1 for x in resp.split()]
+                last_line = resp.strip().splitlines()[-1].strip()
+                idxs = []
+                if last_line:
+                    idxs = [int(x) - 1 for x in last_line.split()]
+                if len(idxs) == 1 and idxs[0] == -1:
+                    idxs = []
 
                 print("\x1b[31;1mquering pages\x1b[0m")
                 p3 = web_search_prompt_2(question, [search_links[x] for x in idxs])
