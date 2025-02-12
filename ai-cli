@@ -13,7 +13,6 @@ from threading import Thread
 from typing import List, Optional, Tuple
 
 import openai
-
 import httpx
 import yaml
 from pydantic import BaseModel, Field
@@ -27,6 +26,7 @@ class Model(str, Enum):
     deepseek_reasoner = "deepseek-reasoner"
     siliconflow_deepseek_r1 = "deepseek-ai/DeepSeek-R1"
     siliconflow_deepseek_v3 = "deepseek-ai/DeepSeek-V3"
+    deepseek_r1 = "DeepSeek-R1"
     moonshot_v1_8k = "moonshot-v1-8k"
     moonshot_v1_32k = "moonshot-v1-32k"
     moonshot_v1_128k = "moonshot-v1-128k"
@@ -188,10 +188,10 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
     for chunk in resp:
         # print(chunk, flush=True)
         if hasattr(chunk.choices[0].delta, "reasoning_content"):
-            if chunk.choices[0].delta.reasoning_content is not None:
+            reasoning_content = chunk.choices[0].delta.reasoning_content
+            if reasoning_content:
                 if prev is None:
                     print("\x1b[31;1m<think>\x1b[0m\n")
-                    prev = "reasoning"
                 seg = chunk.choices[0].delta.reasoning_content
                 print(seg, end="", flush=True)
                 reasoning_str += seg
@@ -203,6 +203,9 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
                 print(seg, end="", flush=True)
                 resp_str += seg
         elif chunk.choices[0].delta.content is not None:
+            if prev == "reasoning":
+                prev = "content"
+                print("\x1b[31;1m<think/>\x1b[0m\n\n")
             seg = chunk.choices[0].delta.content
             print(seg, end="", flush=True)
             resp_str += seg
@@ -385,8 +388,8 @@ def to_text_with_cleanup(html: str) -> str:
     from lxml_html_clean import clean_html
     from bs4 import BeautifulSoup
 
-    soup = BeautifulSoup(html, 'lxml')
-    for s in soup.find_all('script'):
+    soup = BeautifulSoup(html, "lxml")
+    for s in soup.find_all("script"):
         s.decompose()
     r = html2text.html2text(clean_html(str(soup)))
     return r
