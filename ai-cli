@@ -31,6 +31,8 @@ class Model(str, Enum):
     moonshot_v1_32k = "moonshot-v1-32k"
     moonshot_v1_128k = "moonshot-v1-128k"
     moonshot_v1_auto = "moonshot-v1-auto"
+    deepseek = "deepseek"
+    deepseek_think = "deepseek-think"
 
 
 class Param(BaseModel):
@@ -128,7 +130,7 @@ def parse_to_messages() -> Optional[List[Tuple[str, str]]]:
             elif current_role is not None:
                 partial.append(line)
         if current_role is None:
-            eprint("no role every detected")
+            eprint("no role ever detected")
             return None
         curr = "".join(partial).strip()
         if curr:
@@ -192,6 +194,7 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
             if reasoning_content:
                 if prev is None:
                     print("\x1b[31;1m<think>\x1b[0m\n")
+                    prev = "reasoning"
                 seg = chunk.choices[0].delta.reasoning_content
                 print(seg, end="", flush=True)
                 reasoning_str += seg
