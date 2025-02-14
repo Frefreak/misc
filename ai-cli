@@ -31,8 +31,10 @@ class Model(str, Enum):
     moonshot_v1_32k = "moonshot-v1-32k"
     moonshot_v1_128k = "moonshot-v1-128k"
     moonshot_v1_auto = "moonshot-v1-auto"
-    deepseek = "deepseek"
-    deepseek_think = "deepseek-think"
+    deepseek_free = "deepseek"
+    deepseek_think_free = "deepseek-think"
+    deepseek_v3_tencentcloud = "deepseek-v3"
+    deepseek_r1_tencentcloud = "deepseek-r1"
 
 
 class Param(BaseModel):
@@ -108,7 +110,7 @@ if not os.path.exists(CONFIG_FILE):
         exit(0)
 
 
-buffer_file = "/tmp/ai-buffer"
+buffer_file = "/tmp/ai-buffer.md"
 
 
 def parse_to_messages() -> Optional[List[Tuple[str, str]]]:
