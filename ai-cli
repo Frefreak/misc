@@ -27,14 +27,22 @@ class Model(str, Enum):
     siliconflow_deepseek_r1 = "deepseek-ai/DeepSeek-R1"
     siliconflow_deepseek_v3 = "deepseek-ai/DeepSeek-V3"
     deepseek_r1 = "DeepSeek-R1"
-    moonshot_v1_8k = "moonshot-v1-8k"
-    moonshot_v1_32k = "moonshot-v1-32k"
-    moonshot_v1_128k = "moonshot-v1-128k"
-    moonshot_v1_auto = "moonshot-v1-auto"
     deepseek_free = "deepseek"
     deepseek_think_free = "deepseek-think"
     deepseek_v3_tencentcloud = "deepseek-v3"
     deepseek_r1_tencentcloud = "deepseek-r1"
+    # kimi
+    kimi = "kimi"
+    kimi_search = "kimi-search"
+    kimi_k1 = "k1"
+    kimi_k1_search = "k1-search"
+    moonshot_v1_8k = "moonshot-v1-8k"
+    moonshot_v1_32k = "moonshot-v1-32k"
+    moonshot_v1_128k = "moonshot-v1-128k"
+    moonshot_v1_auto = "moonshot-v1-auto"
+
+    # grok
+    grok2 = "grok-2-latest"
 
 
 class Param(BaseModel):
@@ -177,7 +185,7 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
         api_key=config.api_key,
         base_url=config.endpoint,
         default_headers=config.headers,
-        # http_client=httpx.Client(verify=False),
+        http_client=httpx.Client(verify=False),
     )
     resp = cli.chat.completions.create(
         model=config.model,
@@ -397,13 +405,22 @@ def main():
 def to_text_with_cleanup(html: str) -> str:
     import html2text
     from lxml_html_clean import clean_html
-    from bs4 import BeautifulSoup
+    from bs4 import BeautifulSoup, ProcessingInstruction
 
-    soup = BeautifulSoup(html, "lxml")
-    for s in soup.find_all("script"):
-        s.decompose()
-    r = html2text.html2text(clean_html(str(soup)))
-    return r
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        for s in soup.find_all("script"):
+            s.decompose()
+        for item in soup.contents:
+            if isinstance(item, ProcessingInstruction):
+                item.extract()
+        r = html2text.html2text(clean_html(str(soup)))
+        return r
+    except Exception as e:
+        print(repr(e))
+        import IPython
+        IPython.embed()
+        return ""
 
 
 if __name__ == "__main__":
