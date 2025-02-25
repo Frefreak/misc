@@ -21,7 +21,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", help="model", required=False)
 
 
+# TODO: group model by type
 class Model(str, Enum):
+    # deepseek
     deepseek_chat = "deepseek-chat"
     deepseek_reasoner = "deepseek-reasoner"
     siliconflow_deepseek_r1 = "deepseek-ai/DeepSeek-R1"
@@ -66,6 +68,7 @@ class Config(BaseModel):
     # hide from serde
     api_key: str = Field(default="", exclude=True)
     headers: Dict[str, str] = {}
+    proxy: Optional[str] = None
 
     class Config:
         extra = "forbid"
@@ -185,7 +188,7 @@ def do_chat_completion(messages: List[Tuple[str, str]]) -> Tuple[str, Optional[s
         api_key=config.api_key,
         base_url=config.endpoint,
         default_headers=config.headers,
-        http_client=httpx.Client(verify=False),
+        http_client=httpx.Client(verify=False, proxy=config.proxy),
     )
     resp = cli.chat.completions.create(
         model=config.model,
