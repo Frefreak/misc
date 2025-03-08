@@ -4,7 +4,6 @@ import argparse
 import requests
 import sys
 import re
-import json
 import random
 
 # Parse command line arguments
@@ -60,15 +59,15 @@ def main():
                 download_urls.append(download_url_with_cookie)
 
         # Save file info for later use
-        with open('/home/adv_zxy/temp/file_info.json', 'w') as f:
-            json.dump(file_info, f)
+        # with open('file_info.json', 'w') as f:
+        #     json.dump(file_info, f)
 
         # Save download URLs to a file with comments
-        with open('/home/adv_zxy/temp/download_list.txt', 'w') as f:
+        with open('download_list.txt', 'w') as f:
             for url in download_urls:
                 filename = url.split('/')[-1].split(' ')[0].replace('%20', ' ')
                 f.write(f'# {filename}\n{url}\n')
-        print('aria2c --input-file=download_list.txt --header="Cookie: accountToken={token}"')
+        print(f'aria2c --input-file=download_list.txt --continue --header="Cookie: accountToken={token}" --header="User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0" -d ')
 
     except requests.RequestException as e:
         print(f'Error fetching URL: {e}', file=sys.stderr)
