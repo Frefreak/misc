@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+
+import subprocess
+from collections import defaultdict
+
+PROMPT_START = '❯'
+
+def main():
+    output = subprocess.getoutput("tmux capture-pane -p -S -")
+    lines = output.splitlines()
+    st = 0
+    rg_output = []
+    for line in lines[::-1]:
+        if line.startswith(PROMPT_START):
+            st += 1
+            if st > 1:
+                break
+            continue
+        rg_output.append(line)
+    results = rg_output[2:][::-1]
+    file_lineno = extract_line_nums(results)
+    call_fzf(file_lineno)
+    
+def extract_line_nums(lines):
+    file_lineno = defaultdict(list)
+    num = None
+    current_file = None
+    for line in lines:
+        try:
+            num = int(line.split(':')[0])
+            file_lineno[current_file].append((num, line.split(':')[1].strip()))
+            continue
+        except ValueError:
+            current_file = line.strip()
+            continue
+    return file_lineno
+
+def call_fzf(file_lineno):
+    s = []
+    for file, lineno_lines in file_lineno.items():
+        for num, line in lineno_lines:
+            s.append(f"{file}:{num}: {line}".encode())
+    fzf_cmd = "fzf --multi --ansi -d: --preview 'fish -c \"bat {1} --color=always -H {2} -r (math {2}-10):(math {2}+10)\"'"
+    subprocess.run(fzf_cmd, input=b"\n".join(s), shell=True)
+
+if __name__ == "__main__":
+    main()
