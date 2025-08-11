@@ -27,8 +27,8 @@ def extract_line_nums(lines):
     current_file = None
     for line in lines:
         try:
-            num = int(line.split(':')[0])
-            file_lineno[current_file].append((num, line.split(':')[1].strip()))
+            num = int(line.split(':', 1)[0])
+            file_lineno[current_file].append((num, line.split(':', 1)[1].strip()))
             continue
         except ValueError:
             current_file = line.strip()
