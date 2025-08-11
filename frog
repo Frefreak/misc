@@ -20,7 +20,7 @@ def main():
     results = rg_output[2:][::-1]
     file_lineno = extract_line_nums(results)
     call_fzf(file_lineno)
-    
+
 def extract_line_nums(lines):
     file_lineno = defaultdict(list)
     num = None
@@ -40,7 +40,8 @@ def call_fzf(file_lineno):
     for file, lineno_lines in file_lineno.items():
         for num, line in lineno_lines:
             s.append(f"{file}:{num}: {line}".encode())
-    fzf_cmd = "fzf --multi --ansi -d: --preview 'fish -c \"bat {1} --color=always -H {2} -r (math {2}-10):(math {2}+10)\"'"
+    fzf_cmd = """fzf --multi --ansi -d: --preview "bat {1} --color=always -H {2} -r {2}:+10" """
+    # print(fzf_cmd)
     subprocess.run(fzf_cmd, input=b"\n".join(s), shell=True)
 
 if __name__ == "__main__":
