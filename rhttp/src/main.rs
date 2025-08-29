@@ -87,7 +87,7 @@ async fn main() {
     let mut app = Router::new()
         .route("/_/upload", get(upload_get))
         .route("/_/upload", post(upload_post))
-        .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
+        .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
         // .route("/css/bulma.min.css", get(bulma_css_get))
         .nest_service("/", serve_dir)
         .with_state(st)
