@@ -17,6 +17,7 @@ from playwright.sync_api import sync_playwright, Playwright
 
 STATE_FILE = 'auth_state.json'
 STOP_FILE = ".stop"
+SAVE_FILE = ".save"
 
 os.system('which playwright')
 # breakpoint()
@@ -28,13 +29,13 @@ def run_preamble(playwright: Playwright):
     page = context.new_page()
     page.goto("https://bandcamp.com/c4r50nz")
     print('waiting for login...')
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        context.storage_state(path=STATE_FILE)
-        exit(0)
-        
+    while True:
+        time.sleep(1)
+        if os.path.exists(SAVE_FILE):
+            os.unlink(SAVE_FILE)
+            context.storage_state(path=STATE_FILE)
+            break
+
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 END = '\033[0m'
@@ -136,5 +137,6 @@ def run_third_stage():
 
 with sync_playwright() as playwright:
     # pass
+    run_preamble(playwright)
     # run_first_stage(playwright)
-    run_second_stage(playwright, os.path.expanduser('~/Music'))
+    # run_second_stage(playwright, os.path.expanduser('~/Music'))
