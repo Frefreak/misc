@@ -89,6 +89,7 @@ def get_mp3_filename(url):
     print("Determining output filename...")
     command = [
         YT_DLP_EXE,
+        "--cookies-from-browser", "firefox",
         "-x",  # Extract audio
         "--audio-format", "mp3",
         "--get-filename",
@@ -115,6 +116,7 @@ def download_audio(url, output_filename):
     print(f"\nStarting download for '{output_filename}'...")
     command = [
         YT_DLP_EXE,
+        "--cookies-from-browser", "firefox",
         "-x",  # Extract audio
         "--audio-format", "mp3",
         "--audio-quality", "0",  # VBR 0 (highest)
