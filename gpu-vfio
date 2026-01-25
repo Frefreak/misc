@@ -1,43 +1,146 @@
 #!/usr/bin/env python
 
 import os
-import time
 import argparse
 import subprocess
-from typing import Optional
+from typing import List
 
-gpu = "0000:01:00.0"
-aud = "0000:01:00.1"
-gpu_vd = (
-    open(f"/sys/bus/pci/devices/{gpu}/vendor").read().strip()
-    + " "
-    + open(f"/sys/bus/pci/devices/{gpu}/device").read().strip()
-)
-aud_vd = (
-    open(f"/sys/bus/pci/devices/{aud}/vendor").read().strip()
-    + " "
-    + open(f"/sys/bus/pci/devices/{aud}/device").read().strip()
-)
-
+# PCI addresses from the scripts being replicated
+DEVICES = {
+    "gpu": "0000:01:00.0",
+    "audio": "0000:01:00.1",
+    "usb": "0000:01:00.2",
+    "serial": "0000:01:00.3",
+}
 
 def check_root():
+    """Check if the script is run as root, exit if not."""
     if os.geteuid() != 0:
-        print("This script must be run as root")
+        print("This script must be run as root.")
         exit(1)
 
+def write_to_sysfs(path: str, value: str):
+    """Write a value to a sysfs file, ignoring errors as the shell scripts do."""
+    try:
+        with open(path, 'w') as f:
+            f.write(value)
+    except IOError as e:
+        print(f"Info: Could not write to {path}: {e}")
 
-def get_bound_driver() -> Optional[str]:
-    r = subprocess.check_output(f"lspci -nnk -d {gpu_vd.replace(' ', ':')}", shell=True)
-    # get kernel driver in use
-    driver = None
-    for line in r.decode().split("\n"):
-        if "Kernel driver in use" in line:
-            driver = line.split(":")[1].strip()
-            break
+def run_cmd(cmd: List[str]):
+    """Run a command, ignoring errors as the shell scripts do."""
+    try:
+        subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        print(f"Info: Command failed: {' '.join(cmd)}")
 
-    if not driver:
-        print("GPU is not bound to any driver")
-    return driver
+def bind_vfio():
+    """
+    Unbind devices from current driver and bind to vfio-pci.
+    """
+    check_no_running_processes()
+
+    print("Binding devices to vfio-pci...")
+    for module in ["nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia"]:
+        run_cmd(["modprobe", "-r", module])
+
+    # 1. Unbind from current driver (e.g., nvidia)
+    print("  - Unbinding from current drivers...")
+    for device_addr in DEVICES.values():
+        write_to_sysfs(f"/sys/bus/pci/devices/{device_addr}/driver/unbind", device_addr)
+
+    # 2. Set the override to vfio-pci
+    print("  - Setting driver_override to vfio-pci...")
+    for device_addr in DEVICES.values():
+        write_to_sysfs(f"/sys/bus/pci/devices/{device_addr}/driver_override", "vfio-pci")
+
+    # 3. Load vfio-pci and bind
+    print("  - Loading vfio-pci module...")
+    run_cmd(["modprobe", "vfio-pci"])
+
+    print("  - Binding devices to vfio-pci...")
+    for device_addr in DEVICES.values():
+         write_to_sysfs("/sys/bus/pci/drivers/vfio-pci/bind", device_addr)
+
+    print("\nBind complete.")
+
+def unbind_vfio():
+    """
+    Unbind devices from vfio-pci and return to host drivers.
+    Follows the logic of asdf2.sh strictly.
+    """
+    print("Returning devices to host...")
+
+    for device_addr in DEVICES.values():
+        # 1. Unbind from vfio-pci
+        if os.path.exists(f"/sys/bus/pci/devices/{device_addr}/driver"):
+            print(f"  - Unbinding {device_addr} from its driver...")
+            write_to_sysfs(f"/sys/bus/pci/devices/{device_addr}/driver/unbind", device_addr)
+
+        # 2. Remove the override
+        print(f"  - Removing driver_override for {device_addr}...")
+        write_to_sysfs(f"/sys/bus/pci/devices/{device_addr}/driver_override", "")
+
+    # 3. Reload nvidia drivers
+    print("  - Reloading host drivers (nvidia)...")
+    run_cmd(["modprobe", "nvidia"])
+    run_cmd(["modprobe", "nvidia_uvm"])
+    run_cmd(["modprobe", "nvidia_drm"])
+
+    # 4. Trigger a re-probe
+    print("  - Probing for devices...")
+    write_to_sysfs("/sys/bus/pci/drivers_probe", DEVICES["gpu"])
+
+    print("\nUnbind complete.")
+
+
+def get_device_info(pci_addr: str) -> str:
+    """Gets driver and vendor/device ID, replicating original 'chk' functionality."""
+    info_lines = []
+    try:
+        # Get driver
+        driver_path = f"/sys/bus/pci/devices/{pci_addr}/driver"
+        driver = "(None)"
+        if os.path.exists(driver_path):
+            driver = os.path.basename(os.readlink(driver_path))
+        info_lines.append(f"  Driver: {driver}")
+
+        # Get vendor and device ID
+        vendor = open(f"/sys/bus/pci/devices/{pci_addr}/vendor").read().strip()
+        device = open(f"/sys/bus/pci/devices/{pci_addr}/device").read().strip()
+        info_lines.append(f"  ID: {vendor} {device}")
+
+    except Exception as e:
+        info_lines.append(f"  Could not get info: {e}")
+
+    return f"Device {pci_addr}:\n" + "\n".join(info_lines)
+
+
+def check_status():
+    """Checks the status of the devices, like the original 'chk' command."""
+    print("Checking device status...")
+
+    # Original script only showed driver for GPU and IDs for GPU+Audio
+    # This version is more informative and checks all relevant devices.
+    for name, device_addr in DEVICES.items():
+        driver = "(Unknown)"
+        vd = ""
+        try:
+            driver_path = f"/sys/bus/pci/devices/{device_addr}/driver"
+            if os.path.exists(driver_path):
+                driver = os.path.basename(os.readlink(driver_path))
+        except Exception:
+            pass
+
+        try:
+            vd = (
+                open(f"/sys/bus/pci/devices/{device_addr}/vendor").read().strip()
+                + " "
+                + open(f"/sys/bus/pci/devices/{device_addr}/device").read().strip()
+            )
+        except Exception:
+            pass
+        print(f"{name}\t{driver}\t{vd}")
 
 
 def check_no_running_processes():
@@ -46,64 +149,29 @@ def check_no_running_processes():
             'nvidia-smi | grep "No running processes found" > /dev/null', shell=True
         )
     except subprocess.CalledProcessError:
-        print("Error: nvidia-smi reports running processes")
-        subprocess.run(["nvidia-smi"])
-        exit(1)
-
-
-def bind_vfio():
-    # make sure no processes are using nvidia with nvidia-smi
-    check_no_running_processes()
-    subprocess.run(["modprobe", "-r", "nvidia_drm"])
-    subprocess.run(["modprobe", "-r", "nvidia_modeset"])
-    subprocess.run(["modprobe", "-r", "nvidia_uvm"])
-    subprocess.run(["modprobe", "-r", "nvidia"])
-    time.sleep(3)
-    # with open(f"/sys/bus/pci/devices/{gpu}/driver/unbind", "w") as f:
-    #     f.write(gpu)
-    with open(f"/sys/bus/pci/devices/{aud}/driver/unbind", "w") as f:
-        f.write(aud)
-    with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
-        f.write(gpu_vd)
-    with open("/sys/bus/pci/drivers/vfio-pci/new_id", "w") as f:
-        f.write(aud_vd)
-
-
-def unbind_vfio():
-    with open("/sys/bus/pci/drivers/vfio-pci/remove_id", "w") as f:
-        f.write(gpu_vd)
-    with open("/sys/bus/pci/drivers/vfio-pci/remove_id", "w") as f:
-        f.write(aud_vd)
-    with open(f"/sys/bus/pci/devices/{gpu}/remove", "w") as f:
-        f.write("1")
-    with open(f"/sys/bus/pci/devices/{aud}/remove", "w") as f:
-        f.write("1")
-    with open("/sys/bus/pci/rescan", "w") as f:
-        f.write("1")
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument("action", choices=["bind", "unbind", "chk"])
-
+        try:
+            subprocess.check_call(
+                'nvidia-smi | grep "No devices were found" > /dev/null', shell=True
+            )
+        except subprocess.CalledProcessError:
+            print("Error: nvidia-smi reports running processes")
+            subprocess.run(["nvidia-smi"])
+            exit(1)
 
 def main():
+    parser = argparse.ArgumentParser(description="Manage VFIO bindings for PCI devices.")
+    parser.add_argument("action", choices=["bind", "unbind", "chk"], help="The action to perform.")
     args = parser.parse_args()
-    driver = get_bound_driver()
-    if args.action == "bind":
+
+    if args.action in ["bind", "unbind"]:
         check_root()
-        if driver == "vfio-pci":
-            print("Error: GPU is already bound to vfio-pci")
-            exit(1)
+
+    if args.action == "bind":
         bind_vfio()
     elif args.action == "unbind":
-        check_root()
-        if driver != "vfio-pci":
-            print("Error: GPU is not bound to vfio-pci")
-            exit(1)
         unbind_vfio()
     elif args.action == "chk":
-        print(driver)
-        print(gpu_vd, aud_vd)
+        check_status()
 
 
 if __name__ == "__main__":
