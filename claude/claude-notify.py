@@ -192,6 +192,7 @@ def main() -> int:
 
     clear_events = {
         "Stop", "SubagentStop",
+        "PreToolUse",
         "PostToolUse", "PostToolUseFailure",
         "PermissionDenied",
         "UserPromptSubmit",
