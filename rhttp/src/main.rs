@@ -162,6 +162,12 @@ async fn upload_post(
                 file.write_all(&data)
                     .await
                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                // tokio's File buffers writes; flush so write errors (e.g. ENOSPC)
+                // surface here instead of being swallowed when the file is dropped.
+                file.flush().await.map_err(|err| {
+                    log::error!("failed to flush {filename}: {err}");
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
                 log::info!("file saved: \x1b[32;1m{filename}\x1b[0m");
                 return Ok(Response::builder()
                     .status(StatusCode::OK)
