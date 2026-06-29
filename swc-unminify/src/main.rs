@@ -13,23 +13,21 @@ fn main() {
     let cm: Lrc<SourceMap> = Default::default();
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
 
-    let input_file = std::env::args().nth(1).expect(
-        format!(
+    let input_file = std::env::args().nth(1).unwrap_or_else(|| {
+        panic!(
             "Usage: {} <input.js> <output.js>",
-            std::env::args().nth(0).unwrap()
+            std::env::args().next().unwrap()
         )
-        .as_str(),
-    );
-    let output_file = std::env::args().nth(2).expect(
-        format!(
+    });
+    let output_file = std::env::args().nth(2).unwrap_or_else(|| {
+        panic!(
             "Usage: {} <input.js> <output.js>",
-            std::env::args().nth(0).unwrap()
+            std::env::args().next().unwrap()
         )
-        .as_str(),
-    );
+    });
     let fm = cm
         .load_file(Path::new(&input_file))
-        .expect(format!("failed to load {}", input_file).as_str());
+        .unwrap_or_else(|_| panic!("failed to load {}", input_file));
     let lexer = Lexer::new(
         // We want to parse ecmascript
         Syntax::Es(Default::default()),
@@ -55,9 +53,7 @@ fn main() {
     let mut buf = vec![];
     let write_js = swc_ecma_codegen::text_writer::JsWriter::new(cm.clone(), "\n", &mut buf, None);
     let mut emitter = Emitter {
-        cfg: swc_ecma_codegen::Config {
-            ..Default::default()
-        },
+        cfg: Default::default(),
         comments: None,
         cm: cm.clone(),
         wr: Box::new(write_js),
