@@ -16,6 +16,9 @@ is not relevant or not important.
 Also, when user just asked you a question, don't start searching/reading for no
 real purpose, if a question can be directly answered, just answer.
 
+Prefer simplier commands, readability is important. e.g. kubectl with -o yaml
+and rg/grep is way more readable than using jsonpath, human seldom use it interactively.
+
 ## Ask questions promptly
 
 If anything is unclear/ambiguous while making a plan or performing a task, ask the user to clarify or decide.
@@ -68,6 +71,10 @@ Use `podman`, not `docker`, to build (and run) container images.
 When making a git commit, do not include a Co-Authored-By part
 
 When creating a new repo, the default branch should be 'master', not 'main'.
+
+Avoid using '&&' for consecutive git commands (sometimes there might be lock issue),
+prefer describe the purpose and execute one git command at a time. This also helps
+readability.
 
 
 ## English
