@@ -1,5 +1,14 @@
 # Global Rules
 
+## Coding
+
+Try your best to "make illegal state unrepresentable".
+Make your comment concise. Comment should address the essential things.
+Don't explain things with overly details and should focus on the current
+state unless it is necessary to mention the old behavior. If you change
+something to A, then modify to B in the same session, it is weird and almost
+not worth it to even talk about A.
+
 ## Use memory/skill smart
 
 Don't use the fucking project memory for things that you should remember globally, use global memory. More importantly,
@@ -16,8 +25,15 @@ is not relevant or not important.
 Also, when user just asked you a question, don't start searching/reading for no
 real purpose, if a question can be directly answered, just answer.
 
+
+## Shell
+
 Prefer simplier commands, readability is important. e.g. kubectl with -o yaml
 and rg/grep is way more readable than using jsonpath, human seldom use it interactively.
+
+Attach a simple text alongside every command to be run describing the purpose.
+
+For unknown command that can be used to connect to some database, don't read its file content. Just use it.
 
 ## Ask questions promptly
 
@@ -53,14 +69,6 @@ Never invoke macOS stock `/usr/bin/python3` — it lacks dependencies and doesn'
 
 **How to apply:** If a `python3` invocation fails with `ModuleNotFoundError`, do not retry against system Python — switch to `~/.venv` or the uv shebang form.
 
-## Shell
-
-For shell execution, try to make the command easier to read, like how a human
-might write and read.
-
-For kubectl, prefer 'jq' instead of 'jsonpath'
-
-For unknown command that can be used to connect to some database, don't read its file content. Just use it.
 
 ## Containers
 
@@ -72,7 +80,7 @@ When making a git commit, do not include a Co-Authored-By part
 
 When creating a new repo, the default branch should be 'master', not 'main'.
 
-Avoid using '&&' for consecutive git commands (sometimes there might be lock issue),
+Avoid using '&&' or ';' for consecutive git commands (sometimes there might be lock issue),
 prefer describe the purpose and execute one git command at a time. This also helps
 readability.
 

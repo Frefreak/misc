@@ -3,6 +3,10 @@
 # Segments: model > git branch/status > pwd > cost/duration > context.
 # Needs a Nerd Font for  (powerline) and  (branch) glyphs.
 
+# Background observer: never take index.lock (a status refresh mid-rebase
+# can make the rebase's own index write fail with "File exists").
+export GIT_OPTIONAL_LOCKS=0
+
 input=$(cat)
 
 ESC=$'\033'
