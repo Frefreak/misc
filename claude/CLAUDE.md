@@ -35,6 +35,13 @@ Attach a simple text alongside every command to be run describing the purpose.
 
 For unknown command that can be used to connect to some database, don't read its file content. Just use it.
 
+Also the user uses fish shell, when asking user to run a command, use fish syntax.
+
+## Design/plan docs
+
+State goals and principles; never structure scope as "只做/不做" (do/don't-do) lists. Distinguish permanent principles from per-version scope.
+Docs are specifications, not tutorials — no pedagogical explanations of tools/concepts inside a design doc.
+
 ## Ask questions promptly
 
 If anything is unclear/ambiguous while making a plan or performing a task, ask the user to clarify or decide.
