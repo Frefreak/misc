@@ -1,4 +1,4 @@
-#!/Users/even/.venv/bin/python
+#!/usr/bin/env -S uv run --script
 """Cross-platform desktop notification for Claude Code hooks.
 
 Reads the hook JSON payload on stdin. Dispatches on hook_event_name:
@@ -192,7 +192,6 @@ def main() -> int:
 
     clear_events = {
         "Stop", "SubagentStop",
-        "PreToolUse",
         "PostToolUse", "PostToolUseFailure",
         "PermissionDenied",
         "UserPromptSubmit",
@@ -213,7 +212,7 @@ def main() -> int:
     else:
         message = payload.get("message") or "Needs your attention"
         ntype = payload.get("notification_type") or ""
-    urgency = "critical" if ntype in ("permission_prompt", "idle_prompt") else "normal"
+    urgency = "critical" if ntype == "permission_prompt" else "normal"
 
     if system == "Darwin":
         show_macos(title, subtitle, message, group, ntype)
