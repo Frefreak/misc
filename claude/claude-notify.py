@@ -11,14 +11,19 @@ from __future__ import annotations
 import json
 import os
 import platform
-import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HOOKS_DIR = Path.home() / ".claude" / "hooks"
 IDLE_AUTOCLEAR_SECONDS = 10
+# No hook fires when a permission prompt is approved -- the next one is PostToolUse,
+# at tool completion -- so notifications are closed by watching for the keystroke that
+# answered them. The cap bounds sessions that die at the prompt, and non-tmux ones.
+MAX_LIFETIME_SECONDS = 300
+WATCH_POLL_SECONDS = 1
 
 _POPEN_KWARGS = {
     "stdin": subprocess.DEVNULL,
@@ -46,33 +51,48 @@ def read_payload() -> tuple[dict, str]:
     return data, event
 
 
-def tmux_info() -> tuple[str, str]:
+def tmux_info() -> tuple[str, str, str]:
+    """(pane location, window name, session name); all empty when not under tmux."""
     pane = os.environ.get("TMUX_PANE")
     if not (os.environ.get("TMUX") and pane and shutil.which("tmux")):
-        return "", ""
-
-    def fetch(fmt: str) -> str:
-        try:
-            r = subprocess.run(
-                ["tmux", "display-message", "-p", "-t", pane, fmt],
-                capture_output=True, text=True, timeout=2,
-            )
-            return r.stdout.strip() if r.returncode == 0 else ""
-        except (OSError, subprocess.SubprocessError):
-            return ""
-
-    return (
-        fetch("#{session_name}:#{window_index}.#{pane_index}"),
-        fetch("#{window_name}"),
-    )
+        return "", "", ""
+    fmt = "#{session_name}:#{window_index}.#{pane_index}\t#{window_name}\t#{session_name}"
+    try:
+        r = subprocess.run(
+            ["tmux", "display-message", "-p", "-t", pane, fmt],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "", "", ""
+    if r.returncode != 0:
+        return "", "", ""
+    parts = (r.stdout.strip().split("\t") + ["", "", ""])[:3]
+    return parts[0], parts[1], parts[2]
 
 
-def build_title_subtitle(payload: dict) -> tuple[str, str]:
+def tmux_client_activity(session: str) -> int | None:
+    """Latest input time (epoch secs) across clients attached to `session`.
+
+    Tracks keystrokes only: pane output moves #{window_activity}, not this.
+    """
+    if not (session and shutil.which("tmux")):
+        return None
+    try:
+        r = subprocess.run(
+            ["tmux", "list-clients", "-t", session, "-F", "#{client_activity}"],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    stamps = [int(s) for s in r.stdout.split() if s.isdigit()]
+    return max(stamps) if stamps else None
+
+
+def build_title_subtitle(payload: dict, loc: str, win: str) -> tuple[str, str]:
     cwd = payload.get("cwd") or ""
     project = Path(cwd).name if cwd else ""
     title = f"Claude Code · {project}" if project else "Claude Code"
 
-    loc, win = tmux_info()
     if loc:
         subtitle = f"{loc} [{win}]" if win else loc
     else:
@@ -80,21 +100,43 @@ def build_title_subtitle(payload: dict) -> tuple[str, str]:
     return title, subtitle
 
 
-def schedule_macos_autoclear(group: str, seconds: int) -> None:
-    """Spawn a detached `sleep N && terminal-notifier -remove <group>`."""
-    if not shutil.which("terminal-notifier"):
-        return
-    cmd = f"sleep {seconds} && terminal-notifier -remove {shlex.quote(group)}"
-    subprocess.Popen(
-        ["bash", "-c", cmd],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+def autoclear_seconds(ntype: str) -> int:
+    return IDLE_AUTOCLEAR_SECONDS if ntype == "idle_prompt" else MAX_LIFETIME_SECONDS
 
 
-def show_macos(title: str, subtitle: str, message: str, group: str, ntype: str) -> None:
+def schedule_autoclear(group: str, session: str, seconds: int) -> None:
+    """Spawn a detached watcher that closes this notification once answered."""
+    baseline = tmux_client_activity(session)
+    fire_and_forget([
+        str(Path(__file__).resolve()), "--watch",
+        group, session, "" if baseline is None else str(baseline), str(seconds),
+    ])
+
+
+def watch(group: str, session: str, baseline: str, seconds: str) -> int:
+    """Close once the user types in the session's tmux client, or at the cap."""
+    deadline = time.monotonic() + float(seconds)
+    base = int(baseline) if baseline else None
+    while time.monotonic() < deadline:
+        time.sleep(WATCH_POLL_SECONDS)
+        if base is None:
+            continue
+        current = tmux_client_activity(session)
+        if current is not None and current > base:
+            break
+    clear(group)
+    return 0
+
+
+def clear(group: str) -> None:
+    system = platform.system()
+    if system == "Darwin":
+        clear_macos(group)
+    elif system == "Linux":
+        clear_linux(group)
+
+
+def show_macos(title: str, subtitle: str, message: str, group: str, session: str, ntype: str) -> None:
     if shutil.which("terminal-notifier"):
         args = [
             "terminal-notifier",
@@ -107,8 +149,7 @@ def show_macos(title: str, subtitle: str, message: str, group: str, ntype: str) 
         if subtitle:
             args += ["-subtitle", subtitle]
         fire_and_forget(args)
-        if ntype == "idle_prompt":
-            schedule_macos_autoclear(group, IDLE_AUTOCLEAR_SECONDS)
+        schedule_autoclear(group, session, autoclear_seconds(ntype))
         return
     if shutil.which("osascript"):
         full_title = f"{title} — {subtitle}" if subtitle else title
@@ -128,13 +169,13 @@ def linux_id_path(group: str) -> Path:
     return HOOKS_DIR / f".notify-id-{group}"
 
 
-def show_linux(title: str, subtitle: str, message: str, group: str, urgency: str, ntype: str) -> None:
+def show_linux(title: str, subtitle: str, message: str, group: str, session: str, urgency: str, ntype: str) -> None:
     if not shutil.which("notify-send"):
         return
     body = f"{message}\n{subtitle}" if subtitle else message
+    # --expire-time is not used: the daemon ignores it while notifications are
+    # inhibited, and never expires critical urgency. The watcher closes instead.
     args = ["notify-send", "--print-id", "--app-name=Claude Code", f"--urgency={urgency}"]
-    if ntype == "idle_prompt":
-        args.append(f"--expire-time={IDLE_AUTOCLEAR_SECONDS * 1000}")
     id_file = linux_id_path(group)
     if id_file.exists():
         prev = id_file.read_text().strip()
@@ -144,11 +185,13 @@ def show_linux(title: str, subtitle: str, message: str, group: str, urgency: str
     # notify-send needs to be awaited to capture --print-id for replacement.
     r = subprocess.run(args, capture_output=True, text=True)
     nid = r.stdout.strip()
-    if nid:
-        try:
-            id_file.write_text(nid)
-        except OSError:
-            pass
+    if not nid:
+        return
+    try:
+        id_file.write_text(nid)
+    except OSError:
+        return
+    schedule_autoclear(group, session, autoclear_seconds(ntype))
 
 
 def clear_linux(group: str) -> None:
@@ -186,6 +229,9 @@ def _permission_message(tool_name: str, tool_input: dict) -> str:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--watch":
+        return watch(*sys.argv[2:6])
+
     payload, event = read_payload()
     group = payload.get("session_id") or "claude-code"
     system = platform.system()
@@ -197,13 +243,11 @@ def main() -> int:
         "UserPromptSubmit",
     }
     if event in clear_events:
-        if system == "Darwin":
-            clear_macos(group)
-        elif system == "Linux":
-            clear_linux(group)
+        clear(group)
         return 0
 
-    title, subtitle = build_title_subtitle(payload)
+    loc, win, session = tmux_info()
+    title, subtitle = build_title_subtitle(payload, loc, win)
     if event == "PermissionRequest":
         tool_name = payload.get("tool_name") or "tool"
         tool_input = payload.get("tool_input") or {}
@@ -215,9 +259,9 @@ def main() -> int:
     urgency = "critical" if ntype == "permission_prompt" else "normal"
 
     if system == "Darwin":
-        show_macos(title, subtitle, message, group, ntype)
+        show_macos(title, subtitle, message, group, session, ntype)
     elif system == "Linux":
-        show_linux(title, subtitle, message, group, urgency, ntype)
+        show_linux(title, subtitle, message, group, session, urgency, ntype)
     return 0
 
 
