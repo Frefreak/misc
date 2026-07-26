@@ -88,6 +88,26 @@ def tmux_client_activity(session: str) -> int | None:
     return max(stamps) if stamps else None
 
 
+def tmux_pane_attended(session: str, pane: str) -> bool:
+    """True when `pane` is the one in view: active pane of the active window,
+    on a focused client. Empty pane means no tmux granularity to apply."""
+    if not pane:
+        return True
+    try:
+        r = subprocess.run(
+            ["tmux", "display-message", "-p", "-t", pane, "#{pane_active}#{window_active}"],
+            capture_output=True, text=True, timeout=2,
+        )
+        c = subprocess.run(
+            ["tmux", "list-clients", "-t", session, "-F", "#{client_flags}"],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    in_view = r.returncode == 0 and r.stdout.strip() == "11"
+    return in_view and "focused" in c.stdout
+
+
 def build_title_subtitle(payload: dict, loc: str, win: str) -> tuple[str, str]:
     cwd = payload.get("cwd") or ""
     project = Path(cwd).name if cwd else ""
@@ -108,13 +128,18 @@ def schedule_autoclear(group: str, session: str, seconds: int) -> None:
     """Spawn a detached watcher that closes this notification once answered."""
     baseline = tmux_client_activity(session)
     fire_and_forget([
-        str(Path(__file__).resolve()), "--watch",
-        group, session, "" if baseline is None else str(baseline), str(seconds),
+        str(Path(__file__).resolve()), "--watch", group, session,
+        os.environ.get("TMUX_PANE", ""),
+        "" if baseline is None else str(baseline), str(seconds),
     ])
 
 
-def watch(group: str, session: str, baseline: str, seconds: str) -> int:
-    """Close once the user types in the session's tmux client, or at the cap."""
+def watch(group: str, session: str, pane: str, baseline: str, seconds: str) -> int:
+    """Close once the user attends to this pane, or at the cap.
+
+    client_activity is per-client, so it fires for every pane of the terminal at
+    once; pane_attended narrows it to the pane this notification came from.
+    """
     deadline = time.monotonic() + float(seconds)
     base = int(baseline) if baseline else None
     while time.monotonic() < deadline:
@@ -122,7 +147,7 @@ def watch(group: str, session: str, baseline: str, seconds: str) -> int:
         if base is None:
             continue
         current = tmux_client_activity(session)
-        if current is not None and current > base:
+        if current is not None and current > base and tmux_pane_attended(session, pane):
             break
     clear(group)
     return 0
@@ -230,7 +255,7 @@ def _permission_message(tool_name: str, tool_input: dict) -> str:
 
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "--watch":
-        return watch(*sys.argv[2:6])
+        return watch(*sys.argv[2:7])
 
     payload, event = read_payload()
     group = payload.get("session_id") or "claude-code"
