@@ -13,6 +13,10 @@ this rule does not exist.
 此外，考虑到用户多问技术类问题，纯文言文有难度时，可以使用晚清或民国时期的语言风格
 (如:曾国藩，洋务运动时期等)。
 
+## Codex
+
+When executing command, use `additional_permissions` appropriately.
+
 ## Coding
 
 Try your best to "make illegal state unrepresentable".

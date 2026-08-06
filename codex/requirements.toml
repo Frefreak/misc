@@ -1,0 +1,11 @@
+default_permissions = "manual"
+
+[allowed_permission_profiles]
+manual = true
+auto = true
+
+[permissions.filesystem]
+deny_read = [
+  "~/.kube",
+  "~/.config/gcloud",
+]

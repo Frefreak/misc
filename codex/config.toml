@@ -1,0 +1,59 @@
+# ~/.codex/config.toml
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+
+default_permissions = "manual"
+suppress_unstable_features_warning = true
+
+[permissions.manual]
+description = "Read-only except for shared writable directories."
+extends = ":read-only"
+
+[permissions.manual.filesystem]
+"/Users/even/agent-env" = "write"
+":tmpdir" = "write"
+":slash_tmp" = "write"
+
+[permissions.manual.network]
+enabled = true
+
+[permissions.auto]
+description = "Workspace-write plus shared writable directories."
+extends = ":workspace"
+
+[permissions.auto.filesystem]
+"/Users/even/agent-env" = "write"
+
+[permissions.auto.network]
+enabled = true
+
+[shell_environment_policy.set]
+CLOUDSDK_CONFIG = "/Users/even/agent-env/gcloud"
+KUBECONFIG = "/Users/even/agent-env/kube/config"
+NODE_REPL_TRUSTED_CODE_PATHS = "/Users/even/.codex"
+
+[notice]
+fast_default_opt_out = true
+
+[tui]
+queue_key = "enter"
+session_picker_view = "dense"
+status_line = ["model-with-reasoning", "current-dir", "permissions", "context-window-size", "context-used", "thread-title"]
+status_line_use_colors = true
+
+[tui.model_availability_nux]
+"gpt-5.5" = 4
+"gpt-5.6-sol" = 4
+
+
+[tui.keymap.global]
+cycle_permission_profile = "alt-p"
+
+
+[features]
+js_repl = false
+exec_permission_approvals = true
+code_mode = true
+
+[shell_environment_policy]
+inherit = "all"
