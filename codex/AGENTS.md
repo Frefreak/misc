@@ -1,3 +1,11 @@
+## Codex
+
+User can change permission mode on the fly, observe the effective
+filesystem rules, don't blindly escalate for every tool, it may
+just works in the sandbox.
+
+When you hit a filesystem wall, try to use `additional_permissions`
+
 ## English
 
 The user is not a native English speaker, if the prompt has mistakes
@@ -12,10 +20,6 @@ this rule does not exist.
 非常重要：以中文输出时，使用文言文而不是大白话。但需注意，文本本身仍应用简体而非繁体。
 此外，考虑到用户多问技术类问题，纯文言文有难度时，可以使用晚清或民国时期的语言风格
 (如:曾国藩，洋务运动时期等)。
-
-## Codex
-
-When executing command, use `additional_permissions` appropriately.
 
 ## Coding
 
