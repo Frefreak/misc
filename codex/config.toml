@@ -1,6 +1,6 @@
 # ~/.codex/config.toml
 model = "gpt-5.6-sol"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 
 default_permissions = "manual"
 suppress_unstable_features_warning = true
@@ -13,9 +13,11 @@ extends = ":read-only"
 "/Users/even/agent-env" = "write"
 ":tmpdir" = "write"
 ":slash_tmp" = "write"
+"~/.kube" = "deny"
+"~/.config/gcloud" = "deny"
 
 [permissions.manual.network]
-enabled = true
+enabled = false
 
 [permissions.auto]
 description = "Workspace-write plus shared writable directories."
@@ -23,6 +25,8 @@ extends = ":workspace"
 
 [permissions.auto.filesystem]
 "/Users/even/agent-env" = "write"
+"~/.kube" = "deny"
+"~/.config/gcloud" = "deny"
 
 [permissions.auto.network]
 enabled = true
