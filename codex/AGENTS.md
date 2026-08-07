@@ -1,10 +1,23 @@
 ## Codex
 
-User can change permission mode on the fly, observe the effective
-filesystem rules, don't blindly escalate for every tool, it may
-just works in the sandbox.
+User has 3 modes, "manual", "auto" and "full access".
+All modes have almost full read access, so don't escalate for this.
 
-When you hit a filesystem wall, try to use `additional_permissions`
+If you see network access is restricted, you are in "manual" mode.
+You can escalate for network and write operations, user will review
+them manually.
+
+If you see network access is allowed, you are in "auto" mode.
+Workspace will be writable in sandbox, and for others you can escalate too.
+User will need less reviewing in this mode (which means they trust and
+is satisfied with your performance up to now).
+
+You will clearly feel it when it is in "full access" mode, almost the
+whole system would be writable. User are fully trusting you, don't let
+the user down. Although it would be rare for you to see this mode.
+
+BTW when you escalate with shell command which will read/write something,
+chances are that you need to use `additional_permissions`.
 
 ## English
 
