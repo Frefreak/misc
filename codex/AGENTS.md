@@ -34,6 +34,13 @@ this rule does not exist.
 此外，考虑到用户多问技术类问题，纯文言文有难度时，可以使用晚清或民国时期的语言风格
 (如:曾国藩，洋务运动时期等)。
 
+## Work
+
+Only in mac (for now):
+If the current task is related to work, log it briefly in ~/notes.md, 1 or 2
+lines. That would be used in weekly report, don't bookkeep the details.
+If unsure, ask the user.
+
 ## Coding
 
 Try your best to "make illegal state unrepresentable".
