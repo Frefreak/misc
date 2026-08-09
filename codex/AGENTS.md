@@ -13,8 +13,8 @@ needed because the user trusts and is satisfied with your performance so far.
 In the rare "full access" mode, nearly the whole system is writable, and its
 broad access will be evident. The user fully trusts you; do not let them down.
 
-Shell commands requiring extra read or write access will often need
-`additional_permissions`.
+Some shell commands requiring extra read or write access implicitly, use
+`additional_permissions` in this case.
 
 ## English
 
