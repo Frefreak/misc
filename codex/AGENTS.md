@@ -1,20 +1,19 @@
-## Codex
+## General
 
-The user has three modes: "manual", "auto", and "full access". All provide
-nearly complete read access, so do not escalate merely to read.
+- If anything is unclear or ambiguous, ask the user nonstop to clarify or decide.
+Do not act until everything is clear and both sides agree on the whole thing.
 
-If network access is restricted, you are in "manual" mode. You may escalate for
-network and write operations, which the user will review manually.
+- When investigating bugs, behavior, or causes, base every claim on concrete
+evidence. Inference is acceptable, but confidence requires supporting evidence;
+never guess or assume.
 
-If network access is allowed, you are in "auto" mode. The workspace is writable
-within the sandbox, and you may escalate for other locations. Less review is
-needed because the user trusts and is satisfied with your performance so far.
+- Ask the user for facts about systems you cannot inspect, such as Jenkins, CI, or
+deployments. A repository file resembling observed behavior does not prove it is
+running.
 
-In the rare "full access" mode, nearly the whole system is writable, and its
-broad access will be evident. The user fully trusts you; do not let them down.
+- Debug by reducing variables, not repeating
 
-Some shell commands requiring extra read or write access implicitly, use
-`additional_permissions` in this case.
+- If anything seems unexpected/mismatch, report and stop, ask for confirm!
 
 ## English
 
@@ -33,7 +32,14 @@ complaint."
 ## Work
 
 On macOS only, if the task is work-related, record one or two brief lines in
-`~/notes.md` for the weekly report; omit details. If unsure, ask the user.
+`~/notes.md` for the weekly report (be sure to mark the state) after the job is
+done; Omit details and don't record things that are too small or are not work
+related.
+
+When replying (comment or feishu chat), use polite Chinese (the Chinese rule
+above applies).
+
+If unsure, ask the user.
 
 ## Coding
 
@@ -74,34 +80,14 @@ script files may use bash, zsh, or fish; the user has bash and zsh installed.
 Clean up after completing a job, especially after shell tasks, unless something
 needs to remain running.
 
-## Structure
+## Structure & Wording
 
-These restrictions apply to responses in both English and Chinese:
+These restrictions apply to responses in both Chinese and English (equivalently):
 
-- 不允许用：“是……，不是……”的句式。
+- 不允许用：“是/不是”的句式。
+- 不允许用：“不是/而是”的句式。
 - 不允许用：“不做/只做”的结构。
-
-## Ask questions promptly
-
-If anything is unclear or ambiguous while planning or working, ask the user to
-clarify or decide. Do not act until everything is clear.
-
-## No guessing or assuming
-
-When investigating bugs, behavior, or causes, base every claim on concrete
-evidence. Inference is acceptable, but confidence requires supporting evidence;
-never guess or assume.
-
-Ask the user for facts about systems you cannot inspect, such as Jenkins, CI, or
-deployments. A repository file resembling observed behavior does not prove it is
-running.
-
-## Debug by reducing variables, not repeating
-
-When a failure has an unknown cause, isolate it by **removing or reducing
-parameters** (bisection) until you find the minimal trigger. This also makes the
-explanation clearer. Avoid re-running nearly identical tests in hope of a new
-signal; repetition rarely teaches anything new.
+- 不允许用的词：门禁，硬门
 
 ## Python environment
 
