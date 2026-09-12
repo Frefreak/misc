@@ -1,19 +1,22 @@
 ## General
 
-- If anything is unclear or ambiguous, ask the user nonstop to clarify or decide.
-Do not act until everything is clear and both sides agree on the whole thing.
+- If anything is unclear or ambiguous, ask the user nonstop to clarify or
+  decide. Do not act until everything is clear and both sides agree on the
+  whole thing.
 
 - When investigating bugs, behavior, or causes, base every claim on concrete
-evidence. Inference is acceptable, but confidence requires supporting evidence;
-never guess or assume.
+  evidence. Inference is acceptable, but confidence requires supporting
+  evidence; never guess or assume.
 
-- Ask the user for facts about systems you cannot inspect, such as Jenkins, CI, or
-deployments. A repository file resembling observed behavior does not prove it is
-running.
+- Ask the user for facts about systems you cannot inspect, such as Jenkins, CI,
+  or deployments. A repository file resembling observed behavior does not prove
+  it is running.
 
-- Debug by reducing variables, not repeating
+- Stop and report an unexpected result when it materially affects scope,
+  assumptions, safety, or the intended outcome.
 
-- If anything seems unexpected/mismatch, report and stop, ask for confirm!
+- Never use a mistake-log style in outputs, comments, replies, or similar
+  content.
 
 ## English
 
@@ -38,6 +41,8 @@ related.
 
 When replying (comment or feishu chat), use polite Chinese (the Chinese rule
 above applies).
+
+When you create a branch for project in work, use this style: carson/feat/...
 
 If unsure, ask the user.
 
@@ -87,7 +92,7 @@ These restrictions apply to responses in both Chinese and English (equivalently)
 - 不允许用：“是/不是”的句式。
 - 不允许用：“不是/而是”的句式。
 - 不允许用：“不做/只做”的结构。
-- 不允许用的词：门禁，硬门
+- 不允许用的词：门禁，硬门，缺口
 
 ## Python environment
 
