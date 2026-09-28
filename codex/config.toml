@@ -1,35 +1,7 @@
 # ~/.codex/config.toml
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
-
-default_permissions = "manual"
-suppress_unstable_features_warning = true
-
-[permissions.manual]
-description = "Read-only except for shared writable directories."
-extends = ":read-only"
-
-[permissions.manual.filesystem]
-"/Users/even/agent-env" = "write"
-":tmpdir" = "write"
-":slash_tmp" = "write"
-"~/.kube" = "deny"
-"~/.config/gcloud" = "deny"
-
-[permissions.manual.network]
-enabled = false
-
-[permissions.auto]
-description = "Workspace-write plus shared writable directories."
-extends = ":workspace"
-
-[permissions.auto.filesystem]
-"/Users/even/agent-env" = "write"
-"~/.kube" = "deny"
-"~/.config/gcloud" = "deny"
-
-[permissions.auto.network]
-enabled = true
+model = "gpt-6-astra"
+model_reasoning_effort = "medium"
+approvals_reviewer = "auto_review"
 
 [shell_environment_policy.set]
 CLOUDSDK_CONFIG = "/Users/even/agent-env/gcloud"
@@ -40,24 +12,24 @@ NODE_REPL_TRUSTED_CODE_PATHS = "/Users/even/.codex"
 fast_default_opt_out = true
 
 [tui]
-queue_key = "enter"
+terminal_resize_reflow_max_rows = 0
 session_picker_view = "dense"
 status_line = ["model-with-reasoning", "current-dir", "permissions", "context-window-size", "context-used", "thread-title"]
 status_line_use_colors = true
-
-[tui.model_availability_nux]
-"gpt-5.5" = 4
-"gpt-5.6-sol" = 4
-
-
-[tui.keymap.global]
-cycle_permission_profile = "alt-p"
+screen_reader_detection_done = true
+theme = "dracula"
+fullscreen_transcript = false
+alternate_screen = "auto"
 
 
 [features]
+memories = true
 js_repl = false
-exec_permission_approvals = true
-code_mode = true
+browser_use = true
+browser_use_external = true
+in_app_browser = true
+[features.context_management]
+experimental_mode = true
 
 [shell_environment_policy]
 inherit = "all"

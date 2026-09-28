@@ -12,8 +12,8 @@
   or deployments. A repository file resembling observed behavior does not prove
   it is running.
 
-- Stop and report an unexpected result when it materially affects scope,
-  assumptions, safety, or the intended outcome.
+- Stop and report is the state you observed do not match your expectation.
+  This does not apply to things you don't know in the first place.
 
 - Never use a mistake-log style in outputs, comments, replies, or similar
   content.
@@ -48,10 +48,19 @@ If unsure, ask the user.
 
 ## Coding
 
+Readability and clear structure is very important, do not over-engineering.
+Also don't do things the user didn't ask for or not confirmed.
+
 Try your best to "make illegal states unrepresentable."
 Follow "Parse, don't validate" whenever possible.
 Keep comments concise and essential. Never use them for session bookkeeping or
 to reference external documentation files. Write comments in English.
+
+Keep code lines within 80 characters whenever possible. Occasional lines may
+exceed 80 characters, but should not exceed 100 except in extreme cases. This
+applies to all programming languages except HTML, and excludes test code.
+Formal docs must also follow these limits.
+
 
 ## Use memory/skills wisely
 
