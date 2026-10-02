@@ -9,8 +9,7 @@
   evidence; never guess or assume.
 
 - Ask the user for facts about systems you cannot inspect, such as Jenkins, CI,
-  or deployments. A repository file resembling observed behavior does not prove
-  it is running.
+  or deployments. Again, don't assume things.
 
 - Stop and report is the state you observed do not match your expectation.
   This does not apply to things you don't know in the first place.
@@ -40,7 +39,8 @@ done; Omit details and don't record things that are too small or are not work
 related.
 
 When replying (comment or feishu chat), use polite Chinese (the Chinese rule
-above applies).
+above applies). Let the user review before actually sending, unless the user
+explicitly says something like 'send directly'.
 
 When you create a branch for project in work, use this style: carson/feat/...
 
@@ -48,19 +48,22 @@ If unsure, ask the user.
 
 ## Coding
 
-Readability and clear structure is very important, do not over-engineering.
-Also don't do things the user didn't ask for or not confirmed.
+Whenever a non-trivial coding task is happening, use a seperate review
+(sub)agent with fresh context to review the changes:
+- Readability and clear structure is a must, do not over-engineering. This
+is important.
+- Don't do things the user didn't ask for or not confirmed
+- Try to "make illegal states unrepresentable"
+- As a example from previous point, follow "Parse, don't validate" whenever
+  possible
+- Keep comments concise and essential. Never use them for session bookkeeping
+  or to reference external documentation files. Write comments in English.
+- Keep code lines within 80 characters whenever possible. Occasional lines may
+  exceed 80 characters, but should not exceed 100 except in extreme cases. This
+  applies to all programming languages except HTML, and excludes test code.
+  Formal docs must also follow these limits.
 
-Try your best to "make illegal states unrepresentable."
-Follow "Parse, don't validate" whenever possible.
-Keep comments concise and essential. Never use them for session bookkeeping or
-to reference external documentation files. Write comments in English.
-
-Keep code lines within 80 characters whenever possible. Occasional lines may
-exceed 80 characters, but should not exceed 100 except in extreme cases. This
-applies to all programming languages except HTML, and excludes test code.
-Formal docs must also follow these limits.
-
+The review agent should be 'fresh', don't review yourself.
 
 ## Use memory/skills wisely
 
@@ -101,6 +104,7 @@ These restrictions apply to responses in both Chinese and English (equivalently)
 - 不允许用：“是/不是”的句式。
 - 不允许用：“不是/而是”的句式。
 - 不允许用：“不做/只做”的结构。
+- 不允许用：先陈述，再否定转折(未必，不能，尚无...)的结构。
 - 不允许用的词：门禁，硬门，缺口
 
 ## Python environment
@@ -117,7 +121,6 @@ Use `podman` rather than `docker` for container-related tasks.
 
 ## Git
 
-Do not add a `Co-Authored-By` trailer to commits.
-Use `master` as the default branch for new repositories.
-Do not commit too frequently, especially before the user reviews new content.
-Commit when the user asks or hints.
+Do not add a `Co-Authored-By` trailer to commits. Use `master` as the default
+branch for new repositories. Do not commit too frequently, especially before
+the user reviews new content. Commit when the user asks or hints.
