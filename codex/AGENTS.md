@@ -11,8 +11,8 @@
 - Ask the user for facts about systems you cannot inspect, such as Jenkins, CI,
   or deployments. Again, don't assume things.
 
-- Stop and report is the state you observed do not match your expectation.
-  This does not apply to things you don't know in the first place.
+- Stop and report when what you observed does not match your expectation when
+  doing ops work
 
 - Never use a mistake-log style in outputs, comments, replies, or similar
   content.
@@ -39,8 +39,8 @@ done; Omit details and don't record things that are too small or are not work
 related.
 
 When replying (comment or feishu chat), use polite Chinese (the Chinese rule
-above applies). Let the user review before actually sending, unless the user
-explicitly says something like 'send directly'.
+above applies). Let the user review and stop, before actually sending, unless
+the user explicitly says something like 'send directly'.
 
 When you create a branch for project in work, use this style: carson/feat/...
 
@@ -51,7 +51,8 @@ If unsure, ask the user.
 Whenever a non-trivial coding task is happening, use a seperate review
 (sub)agent with fresh context to review the changes:
 - Readability and clear structure is a must, do not over-engineering. This
-is important.
+is important. If a human can not understand what a code is doing easily, it is
+failure.
 - Don't do things the user didn't ask for or not confirmed
 - Try to "make illegal states unrepresentable"
 - As a example from previous point, follow "Parse, don't validate" whenever
