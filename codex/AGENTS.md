@@ -75,11 +75,8 @@ methods over overly specific examples; a few concise examples are fine.
 
 ## Shell
 
-When diagnosing problems, run commands a human expert would use. Every command
-must have a clear purpose; avoid irrelevant or unimportant commands.
-
 If a user's question can be answered directly, do so without purposeless
-searching or reading.
+searching, reading or checking.
 
 Prefer simple, readable commands. For example, `kubectl -o yaml` with `rg` or
 `grep` is more readable interactively than JSONPath.
@@ -97,6 +94,14 @@ script files may use bash, zsh, or fish; the user has bash and zsh installed.
 
 Clean up after completing a job, especially after shell tasks, unless something
 needs to remain running.
+
+in cli only:
+
+To show images in tmux, use `cryptty image --pane FILE` (right-side preview).
+Press Enter in the preview pane to close it.
+
+If you want to plot a mermaid graph, compile it to image file first and display
+with the above method.
 
 ## Structure & Wording
 
@@ -125,3 +130,6 @@ Use `podman` rather than `docker` for container-related tasks.
 Do not add a `Co-Authored-By` trailer to commits. Use `master` as the default
 branch for new repositories. Do not commit too frequently, especially before
 the user reviews new content. Commit when the user asks or hints.
+
+Use `git add -N` to stage the changes, so it is clear from 'git diff' to see
+what gets changed/added.
